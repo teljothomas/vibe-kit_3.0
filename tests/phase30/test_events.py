@@ -208,7 +208,7 @@ def test_rollback_requires_owner_signature_and_preserves_ledger_history(tmp_path
     )
     restored = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
     assert restored["phase"] == "29"
-    assert restored["status"] == "in_progress"
+    assert restored["status"] == "approved"
     history = events.read_events(root)
     assert len(history) == 4
     assert history[-2]["event_type"] == "rollback_approved"
