@@ -401,7 +401,7 @@ def _rollback_snapshot_unlocked(
         raise EventError("rollback digest confirmation did not match")
     target = "snapshot-rollback:" + current_snapshot["event_id"] + ":" + target_snapshot["event_id"]
     record = approvals.make_record(phase, target, digest, "rollback_approval", reviewer, key)
-    approval_event = _append_event_unlocked(
+    approval_event = append_event(
         root, "rollback_approved", phase, reviewer,
         {"approval_payload": payload, "approval_record": record, "approval_sha256": digest},
         source="state-rollback",
