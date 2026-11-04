@@ -6,7 +6,7 @@
 
 ## Windows defects found by the first pull-request matrix
 
-1. **Git line-ending normalization:** on Windows with `core.autocrlf=true`, the amendment file was converted before entering the Git index. The approval signature had been calculated over the working-tree proposal bytes, while pre-commit checked the staged blob bytes. Phase amendment application now stages the target contract and its archive first, calculates both digests from `git show :path`, requires those staged blobs to match, and signs the staged digest. The raw proposal digest remains bound to the human's confirmation and is retained separately.
+1. **Git line-ending normalization:** on Windows with `core.autocrlf=true`, the amendment file was converted before entering the Git index. The approval signature had been calculated over the working-tree proposal bytes, while pre-commit checked the staged blob bytes. The final correction also updates the pre-commit verifier to validate the signed archive digest field, so the producer and verifier use the same index-byte definition. Phase amendment application now stages the target contract and its archive first, calculates both digests from `git show :path`, requires those staged blobs to match, and signs the staged digest. The raw proposal digest remains bound to the human's confirmation and is retained separately.
 2. **Drive-qualified symlink escape:** the Windows drive-path branch previously used a lexical repository-prefix test. That could accept a path inside the repository which resolved through a symlink outside it. The path normalizer now resolves the drive-qualified path and checks the resolved location against the resolved repository root before returning a relative path.
 
 ## Corrected local evidence
