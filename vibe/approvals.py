@@ -65,6 +65,7 @@ def require_human(stdin=None, environ=None, confirm: Callable[[str], str] = inpu
 def make_record(phase: str, target_path: str, target_sha256: str, mode: str,
                 reviewer: str, key: bytes, proposal_sha256: Optional[str] = None,
                 previous_sha256: Optional[str] = None, archive_path: Optional[str] = None,
+                archive_sha256: Optional[str] = None,
                 approved_at: Optional[str] = None) -> Dict[str, Any]:
     body: Dict[str, Any] = {
         "schema": SCHEMA,
@@ -81,6 +82,8 @@ def make_record(phase: str, target_path: str, target_sha256: str, mode: str,
         body["previous_sha256"] = previous_sha256
     if archive_path is not None:
         body["archive_path"] = archive_path
+    if archive_sha256 is not None:
+        body["archive_sha256"] = archive_sha256
     body["signature_hmac_sha256"] = hmac.new(key, _canonical_json(body), hashlib.sha256).hexdigest()
     return body
 
@@ -182,7 +185,6 @@ def apply_amendment(root: str | Path, phase: str, *, environ=None, stdin=None,
         raise ApprovalError("amendment digest confirmation did not match")
 
     previous_sha = hashlib.sha256(target.read_bytes()).hexdigest()
-    target_sha = proposal_sha
     archive_rel = "docs/amendments/phase-" + str(phase) + "-" + proposal_sha[:12] + ".md"
     archive = root / archive_rel
     approval_rel = approval_path_for(root, str(phase), target_rel)
@@ -193,20 +195,30 @@ def apply_amendment(root: str | Path, phase: str, *, environ=None, stdin=None,
     except GovernanceError as exc:
         raise ApprovalError("approval output path is unsafe: " + str(exc)) from exc
 
+    # Git may normalize CRLF to LF when adding a file on Windows. Bind the
+    # approval to the exact staged blob bytes, not the pre-clean working copy.
+    # The raw proposal digest remains separately recorded for the human confirmation.
+    _write_atomic(archive, proposed)
+    _write_atomic(target, proposed)
+    _git(root, "add", "--", target_rel, archive_rel)
+    staged_target = staged_bytes(root, target_rel)
+    staged_archive = staged_bytes(root, archive_rel)
+    target_sha = hashlib.sha256(staged_target).hexdigest()
+    archive_sha = hashlib.sha256(staged_archive).hexdigest()
+    if staged_target != staged_archive:
+        raise ApprovalError("staged phase contract and amendment archive differ after Git normalization")
+
     record = make_record(
         phase=str(phase), target_path=target_rel, target_sha256=target_sha,
         mode="phase_amendment", reviewer=reviewer, key=key,
-        proposal_sha256=proposal_sha, previous_sha256=previous_sha, archive_path=archive_rel,
+        proposal_sha256=proposal_sha, previous_sha256=previous_sha,
+        archive_path=archive_rel, archive_sha256=archive_sha,
     )
-    # Preserve the proposal as a non-authoritative audit artifact, then atomically
-    # replace the source contract and write its digest-bound approval record.
-    _write_atomic(archive, proposed)
-    _write_atomic(target, proposed)
     _write_atomic(approval, json.dumps(record, indent=2, sort_keys=True).encode("utf-8") + b"\n")
     proposal.unlink()
     # Stage only the reviewed contract transaction. This prevents the human command
     # from accidentally sweeping unrelated work into the commit.
-    _git(root, "add", "--", target_rel, archive_rel, approval_rel)
+    _git(root, "add", "--", approval_rel)
     tracked_proposal = subprocess.run(
         ["git", "ls-files", "--error-unmatch", proposal_rel],
         cwd=str(root), capture_output=True,

@@ -80,19 +80,16 @@ def normalize_relative_path(root: str | Path, target: str | Path) -> str:
 
     drive_match = re.match(r"^([A-Za-z]):/(.*)$", raw)
     if drive_match:
-        root_text = str(root_path).replace("\\", "/")
-        root_drive = re.match(r"^([A-Za-z]):/(.*)$", root_text)
-        if not root_drive or root_drive.group(1).casefold() != drive_match.group(1).casefold():
-            raise GovernanceError("target path is outside the repository")
-        root_prefix = root_text.rstrip("/")
-        target_text = raw.rstrip("/")
-        if target_text.casefold() == root_prefix.casefold():
-            relative = ""
-        elif target_text.casefold().startswith(root_prefix.casefold() + "/"):
-            relative = target_text[len(root_prefix) + 1 :]
-        else:
-            raise GovernanceError("target path is outside the repository")
-        return relative.replace("\\", "/").casefold()
+        # Resolve drive-qualified Windows paths too: a lexical prefix check would
+        # accept an in-repo symlink whose destination escapes the repository.
+        candidate = Path(raw)
+        resolved = candidate.resolve(strict=False)
+        if not _inside(resolved, root_path):
+            raise GovernanceError("target path resolves outside the repository")
+        relative = resolved.relative_to(root_path).as_posix()
+        if relative in ("", "."):
+            raise GovernanceError("repository root is not a file target")
+        return relative.casefold()
 
     candidate_text = raw
     if raw.startswith("/"):

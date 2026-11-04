@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 
 import pytest
 
@@ -23,10 +24,14 @@ def test_human_amendment_applies_exact_proposal_and_signs_digest(tmp_path):
     assert (root / result["archive"]).read_bytes() == proposal_content
     assert not (root / "docs/proposals/phase-29-amend.md").exists()
     record = json.loads((root / result["approval"]).read_text(encoding="utf-8"))
+    staged_target = approvals.staged_bytes(root, result["target"])
+    staged_archive = approvals.staged_bytes(root, result["archive"])
+    assert staged_target == staged_archive
     valid, message = approvals.verify_record(
-        record, KEY.encode(), "docs/phases/phase-29.md", hashlib.sha256(proposal_content).hexdigest(), "29"
+        record, KEY.encode(), "docs/phases/phase-29.md", hashlib.sha256(staged_target).hexdigest(), "29"
     )
     assert valid, message
+    assert record["archive_sha256"] == hashlib.sha256(staged_archive).hexdigest()
     assert record["proposal_sha256"] == result["proposal_sha256"]
     assert governance.check_governance(root) == (True, None)
 
@@ -82,3 +87,25 @@ def test_amendment_apply_stages_only_the_reviewed_transaction(tmp_path):
     assert result["approval"] in staged
     assert "docs/proposals/phase-29-amend.md" not in staged
     assert "README.md" not in staged
+
+
+def test_amendment_digest_tracks_git_normalized_bytes(tmp_path):
+    root = make_repo(tmp_path)
+    subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=root, check=True)
+    proposal_dir = root / "docs/proposals"
+    proposal_dir.mkdir()
+    proposal = proposal_dir / "phase-29-amend.md"
+    proposal.write_bytes(b"# Windows line endings\r\n\r\n**Status:** reviewed\r\n")
+    result = approvals.apply_amendment(
+        root, "29", environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=interactive_confirm("Teljo"),
+    )
+    staged_target = approvals.staged_bytes(root, result["target"])
+    staged_archive = approvals.staged_bytes(root, result["archive"])
+    record = json.loads((root / result["approval"]).read_text(encoding="utf-8"))
+    assert staged_target == staged_archive
+    assert record["target_sha256"] == hashlib.sha256(staged_target).hexdigest()
+    assert record["archive_sha256"] == hashlib.sha256(staged_archive).hexdigest()
+    valid, message = approvals.verify_record(
+        record, KEY.encode(), result["target"], hashlib.sha256(staged_target).hexdigest(), "29"
+    )
+    assert valid, message
