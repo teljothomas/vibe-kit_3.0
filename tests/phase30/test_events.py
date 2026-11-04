@@ -136,3 +136,17 @@ def test_event_schema_has_exact_runtime_fields():
     }
     assert set(schema["required"]) == required
     assert schema["additionalProperties"] is False
+
+
+def test_legacy_source_hash_is_stable_across_crlf_and_lf(tmp_path):
+    source = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    lf = tmp_path / "legacy-lf.json"
+    crlf = tmp_path / "legacy-crlf.json"
+    lf.write_text(json.dumps(source, indent=2) + "\n", encoding="utf-8", newline="\n")
+    crlf.write_bytes((json.dumps(source, indent=2) + "\n").replace("\n", "\r\n").encode("utf-8"))
+    root = tmp_path / "project"
+    _project(root)
+    first = events.preview_legacy_migration(root, lf)
+    second = events.preview_legacy_migration(root, crlf)
+    assert first["source_sha256"] == second["source_sha256"]
+    assert first["source_raw_sha256"] != second["source_raw_sha256"]
