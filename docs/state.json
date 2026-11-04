@@ -1,11 +1,19 @@
 {
   "schema": 1,
-  "phase": "28",
-  "status": "gated",
+  "phase": "29",
+  "status": "in_progress",
   "last_gate": {
-    "phase": "28",
-    "status": "passed",
-    "commit": "75db675563f21c5aa4505fd2809e3185d2693b08"
+    "phase": "29",
+    "status": "not_run",
+    "commit": null
   },
-  "next": "Human review and approval of Phase 28; then begin Phase 29."
+  "previous_phase": {
+    "phase": "28",
+    "status": "approved",
+    "gate_status": "passed",
+    "gate_commit": "a8bb5362ae028b4442867e054361787100d7f620",
+    "ci_matrix": "9/9 passed on Ubuntu 24.04, macOS and Windows with Python 3.9, 3.11 and 3.13",
+    "approval_basis": "Repository owner explicitly instructed proceeding to the next phase on 4 November 2026."
+  },
+  "next": "Complete Phase 29 governance and phase-contract integrity; then stop for human review."
 }

@@ -19,7 +19,7 @@ This is a **new, independent V3 codebase**. The original `teljothomas/vibe-kit` 
 
 ## Current build status
 
-The initial V3 foundation and Phase 28 portability scaffold are present. Phase 28 is **in progress** until its GitHub Actions matrix has run successfully on the new remote repository. Do not treat a local test run as proof of remote cross-platform conformance.
+Phase 28 portability is approved after 9/9 CI matrix combinations passed on Ubuntu 24.04, macOS and Windows with Python 3.9, 3.11 and 3.13. Phase 29 governance and phase-contract integrity is now in progress. Do not treat a local test run as proof of remote cross-platform conformance.
 
 See:
 - [`docs/v3-technical-spec.md`](docs/v3-technical-spec.md) — architecture, file map, acceptance criteria, migration and release strategy.
@@ -38,7 +38,7 @@ python -m pytest -q
 python -m vibe --version
 python -m vibe doctor --strict
 python -m vibe verify
-scripts/gate --phase 28
+scripts/gate --phase 29
 ```
 
 Python 3.9+ is the current compatibility target. CI exercises Python 3.9, 3.11 and 3.13 on Ubuntu, macOS and Windows.
@@ -50,9 +50,22 @@ vibe --version
 vibe status
 vibe doctor [--strict]
 vibe verify
+vibe governance check
+vibe governance approve-staged
+vibe amendment apply --phase NN
+vibe hooks install
+vibe hooks uninstall
 ```
 
 The CLI surface will grow only with the phases in the V3 plan. Commands that are not implemented yet are intentionally not represented as working features.
+
+## Governance and security boundary
+
+Direct Claude Code `Write`, `Edit` and `NotebookEdit` attempts against phase source contracts, the agent protocol, CI/gate entrypoints, the guard implementation and protected governance files are denied by the standalone PreToolUse guard. Generated `phase-NN.context.md` and `phase-NN.repair.md` artifacts remain writable. Amendment proposals are non-authoritative and block the gate and Git pre-commit hook until a human applies the exact proposal through the interactive approval command.
+
+Set `VIBE_APPROVAL_KEY` to a private random value of at least 32 UTF-8 bytes before using human approval commands. The key is never stored in the repository. Approval records contain HMAC signatures bound to the exact target-content SHA-256 digest. Configure the same secret in CI only for workflows that must verify commits changing protected files.
+
+Hooks and Git hooks are guardrails, not a security sandbox. They cannot intercept arbitrary shell/Python file writes, privileged processes, or a user who disables the hook. Use OS/container sandboxing, restricted credentials, required reviews and protected branches for stronger isolation.
 
 ## Development rules
 

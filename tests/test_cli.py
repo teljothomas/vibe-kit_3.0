@@ -18,7 +18,7 @@ def test_status_is_compact_json():
     proc = run_vibe("status")
     assert proc.returncode == 0
     payload = json.loads(proc.stdout)
-    assert payload["phase"] == "28"
+    assert payload["phase"] == "29"
     assert payload["status"] in {"not_started", "in_progress", "gated", "approved", "rejected"}
 
 

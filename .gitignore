@@ -13,3 +13,6 @@ htmlcov/
 .vibe/tmp/
 .DS_Store
 Thumbs.db
+
+# Local Vibe runtime data, never source or approval evidence.
+.vibe/

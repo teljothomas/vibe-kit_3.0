@@ -20,3 +20,9 @@ Work on one phase per session and one feature branch per phase. Never commit to 
 - Run the phase gate and relevant full-suite checks.
 - Report exact commands, results, branch and commit; mark unmeasured items honestly.
 - Create a PR; do not merge it. Stop for human review.
+
+## Governance
+- Never write or edit `docs/phases/phase-NN.md`; submit a full replacement as `docs/proposals/phase-NN-amend.md` instead. A proposal is not authority and blocks the gate and pre-commit.
+- Never write protected governance paths directly. A human applies phase amendments with `vibe amendment apply`; a human reviews other staged protected files with `vibe governance approve-staged`.
+- A subagent has no exemption from governance write checks. Generated `.context.md` and `.repair.md` packs are separate, writable artifacts.
+- The hook guard is not an OS sandbox; do not describe it as one.

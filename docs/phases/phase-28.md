@@ -1,6 +1,6 @@
 # Phase 28 — V3 foundation and portability baseline
 
-**Status:** gated — all nine CI matrix combinations and the strict gate passed; awaiting human approval  
+**Status:** approved — repository owner explicitly authorized proceeding to Phase 29 on 4 November 2026  
 **Purpose:** establish an independently buildable V3 repository with a real CI/test contract before adding governance or intelligence features.
 
 Read: `AGENTS.md`, `docs/invariants.md`, `pyproject.toml`, `vibe/`, `tests/`, `.github/workflows/`, `scripts/gate`
@@ -15,7 +15,7 @@ Gate: `scripts/gate --phase 28` and full `python -m pytest -q`
 - CI tests Ubuntu, macOS and Windows on Python 3.9, 3.11 and 3.13.
 - The repository gate workflow installs pytest before executing the pytest-backed gate and pins Python to a matrix-supported version.
 - `python -m vibe doctor --strict`, `python -m vibe verify`, `scripts/gate --phase 28` pass locally.
-- The feature branch's complete remote CI matrix passed (9/9) at commit `75db675563f21c5aa4505fd2809e3185d2693b08`; the strict gate also passed. Human approval is still required before Phase 28 is approved.
+- The complete remote CI matrix passed 9/9 on both `main` and `phase/28-v3-foundation` at commit `a8bb5362ae028b4442867e054361787100d7f620`; the strict gate also passed. The repository owner then explicitly instructed proceeding to Phase 29.
 
 ## Out of scope
 
