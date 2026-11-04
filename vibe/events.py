@@ -92,9 +92,9 @@ def verify_bytes(raw: bytes) -> List[Dict[str, Any]]:
             item = json.loads(line.decode("utf-8"))
         except (UnicodeError, json.JSONDecodeError) as exc:
             raise EventError("ledger contains invalid JSON at sequence " + str(seq)) from exc
-        if not isinstance(item, dict) or required - set(item):
-            raise EventError("ledger event is missing required fields")
-        if item["schema"] != SCHEMA or item["seq"] != seq:
+        if not isinstance(item, dict) or required - set(item) or set(item) != required:
+            raise EventError("ledger event has missing or unsupported fields")
+        if item["schema"] != SCHEMA or isinstance(item["seq"], bool) or not isinstance(item["seq"], int) or item["seq"] != seq:
             raise EventError("ledger schema or sequence mismatch at " + str(seq))
         event_id = item["event_id"]
         if not isinstance(event_id, str) or not event_id or event_id in ids:
@@ -154,6 +154,14 @@ def append_event(
         if event_id:
             existing = next((x for x in old if x["event_id"] == event_id), None)
             if existing:
+                expected = {
+                    "event_type": event_type, "phase": phase, "actor": actor,
+                    "commit": commit, "evidence_ref": evidence_ref, "source": source,
+                    "details": details, "occurred_at": occurred_at,
+                }
+                for field, value in expected.items():
+                    if existing.get(field) != value:
+                        raise EventError("event ID " + event_id + " was already used for different " + field)
                 return existing
         body = {
             "schema": SCHEMA,
