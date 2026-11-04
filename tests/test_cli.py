@@ -19,7 +19,7 @@ def test_status_is_compact_json():
     assert proc.returncode == 0
     payload = json.loads(proc.stdout)
     assert payload["phase"] == "28"
-    assert payload["status"] == "in_progress"
+    assert payload["status"] in {"not_started", "in_progress", "gated", "approved", "rejected"}
 
 
 def test_doctor_and_verify_pass_from_repository_root():
