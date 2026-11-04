@@ -345,6 +345,70 @@ def replay_snapshot(root: str | Path = ".") -> Dict[str, Any]:
     return candidate
 
 
+def rollback_snapshot(
+    root: str | Path, reason: str, *, environ=None, stdin=None, confirm=input,
+) -> Dict[str, Any]:
+    """Restore the previous durable snapshot after an exact human-signed rollback."""
+    from . import approvals
+    root = Path(root).resolve()
+    reason = str(reason).strip()
+    if not reason:
+        raise EventError("rollback reason is required")
+    verify_project(root)
+    history = read_events(root)
+    snapshots = [
+        item for item in history
+        if isinstance(item["details"].get("snapshot_after"), dict)
+    ]
+    if len(snapshots) < 2:
+        raise EventError("rollback requires at least two durable snapshots")
+    current_snapshot = snapshots[-1]
+    target_snapshot = snapshots[-2]
+    current_state = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    phase = str(current_state["phase"])
+    key = approvals.approval_key(environ)
+    reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
+    payload = {
+        "schema": 1,
+        "phase": phase,
+        "from_snapshot_event_id": current_snapshot["event_id"],
+        "to_snapshot_event_id": target_snapshot["event_id"],
+        "reason": reason[:300],
+        "reviewer": reviewer,
+        "approved_at": _now(),
+    }
+    digest = hashlib.sha256(_canonical(payload)).hexdigest()
+    expected = "ROLLBACK " + digest[:12]
+    if confirm("Review the restore target and type " + expected + ": ").strip() != expected:
+        raise EventError("rollback digest confirmation did not match")
+    target = "snapshot-rollback:" + current_snapshot["event_id"] + ":" + target_snapshot["event_id"]
+    record = approvals.make_record(phase, target, digest, "rollback_approval", reviewer, key)
+    approval_event = append_event(
+        root, "rollback_approved", phase, reviewer,
+        {"approval_payload": payload, "approval_record": record, "approval_sha256": digest},
+        source="state-rollback",
+    )
+    restored = write_snapshot(
+        root,
+        dict(target_snapshot["details"]["snapshot_after"]),
+        "rollback_restored",
+        reviewer,
+        {"from_snapshot_event_id": current_snapshot["event_id"],
+         "to_snapshot_event_id": target_snapshot["event_id"],
+         "approval_event_id": approval_event["event_id"],
+         "reason": reason[:300]},
+    )
+    return {
+        "phase": str(restored.get("phase")),
+        "status": str(restored.get("status")),
+        "from_snapshot_event_id": current_snapshot["event_id"],
+        "to_snapshot_event_id": target_snapshot["event_id"],
+        "approval_event_id": approval_event["event_id"],
+        "event_sequence": restored["event_ledger"]["sequence"],
+        "state_bytes": len((root / "docs/state.json").read_bytes()),
+    }
+
+
 def migrate_legacy_state(
     root: str | Path, source_path: str | Path, *, dry_run: bool = True,
     imported_at: Optional[str] = None,
@@ -452,30 +516,37 @@ def verify_project(root: str | Path = ".") -> Dict[str, Any]:
     except approval_module.ApprovalError:
         pass
     for item in history:
-        if item["event_type"] != "decision_human_approved":
+        if item["event_type"] not in {"decision_human_approved", "rollback_approved"}:
             continue
         details = item["details"]
-        payload = details.get("decision")
+        is_rollback = item["event_type"] == "rollback_approved"
+        payload = details.get("approval_payload") if is_rollback else details.get("decision")
         record = details.get("approval_record")
         if not isinstance(payload, dict) or not isinstance(record, dict):
-            raise EventError("human decision event is missing its approval payload")
+            raise EventError("human approval event is missing its approval payload")
         digest = hashlib.sha256(_canonical(payload)).hexdigest()
-        target = "decision:" + str(item["phase"]) + ":" + digest[:12]
+        if is_rollback:
+            target = "snapshot-rollback:" + str(payload.get("from_snapshot_event_id")) + ":" + str(payload.get("to_snapshot_event_id"))
+            mode = "rollback_approval"
+        else:
+            target = "decision:" + str(item["phase"]) + ":" + digest[:12]
+            mode = "decision_approval"
+        digest_field = details.get("approval_sha256") if is_rollback else details.get("decision_sha256")
         valid_shape = (
-            details.get("decision_sha256") == digest
+            digest_field == digest
             and payload.get("phase") == item["phase"]
             and payload.get("reviewer") == item["actor"]
-            and record.get("mode") == "decision_approval"
+            and record.get("mode") == mode
             and record.get("reviewer") == item["actor"]
         )
         if not valid_shape:
-            raise EventError("human decision approval payload does not match its event")
+            raise EventError("human approval payload does not match its event")
         if approval_key is None:
             human_unverified += 1
         else:
             valid, reason = approval_module.verify_record(record, approval_key, target, digest, str(item["phase"]))
             if not valid:
-                raise EventError("human decision HMAC verification failed: " + reason)
+                raise EventError("human approval HMAC verification failed: " + reason)
             human_verified += 1
     return {
         "events": len(history),
