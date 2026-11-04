@@ -53,6 +53,8 @@ def test_phase_start_imports_history_and_signs_all_protected_outputs(tmp_path):
     assert result["phase"] == "30"
     active = (root / "docs/phases/phase-30.md").read_text(encoding="utf-8")
     assert "**Status:** in progress" in active
+    schema_document = json.loads((root / "docs/contracts/event.schema.json").read_text(encoding="utf-8"))
+    assert "Owner-approved additive Phase 30 event contract" in schema_document["$comment"]
     new_state = state.load(root / "docs/state.json")
     assert new_state["phase"] == "30" and new_state["status"] == "in_progress"
     assert new_state["legacy_history"]["imported_entries"] == 22
