@@ -228,7 +228,7 @@ def set_mode(
     event = events.append_event(
         root, "governance_mode_changed", phase, reviewer,
         {"previous_mode": previous, "new_mode": mode, "config_sha256": digest,
-         "approval_record": approval_rel},
+         "approval_record": approval_rel, "approval_record_data": record},
         source="execution-governance",
     )
     staged = subprocess.run(["git", "add", "--", approval_rel, str(events.LEDGER)],
