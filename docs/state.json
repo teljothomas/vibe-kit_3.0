@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "phase": "28",
-  "status": "in_progress",
+  "status": "gated",
   "last_gate": {
     "phase": "28",
-    "status": "not_run",
-    "commit": null
+    "status": "passed",
+    "commit": "75db675563f21c5aa4505fd2809e3185d2693b08"
   },
-  "next": "Complete local and remote Phase 28 portability checks"
+  "next": "Human review and approval of Phase 28; then begin Phase 29."
 }
