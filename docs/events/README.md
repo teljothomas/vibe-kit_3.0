@@ -13,3 +13,6 @@ Commands:
 - `python -m vibe events migrate-v2 --input PATH --dry-run`
 - `python -m vibe events migrate-v2 --input PATH --apply`
 - `python -m vibe events replay`
+- `python -m vibe events rollback --reason "why the previous durable snapshot is being restored"` (interactive HMAC-signed human approval required)
+
+Rollback appends a signed rollback-approval event and a snapshot-restored event. It restores the previous snapshot but never deletes or rewrites earlier ledger rows. A rollback is always human-controlled, including in autonomous mode.
