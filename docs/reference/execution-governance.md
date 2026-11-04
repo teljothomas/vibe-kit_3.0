@@ -42,6 +42,7 @@ python -m vibe events verify
 python -m vibe events migrate-v2 --input .\legacy-state.json --dry-run
 python -m vibe events migrate-v2 --input .\legacy-state.json --apply
 python -m vibe events replay
+python -m vibe events rollback --reason "restore previous good snapshot"
 
 python -m vibe phase start 30
 ```
@@ -49,3 +50,5 @@ python -m vibe phase start 30
 The V3 core remains local-first and does not call GitHub or an external model. Autonomous mode delegates decision authority to the coding agent already running the workflow; it does not provide a remote agent runtime.
 
 Autonomous mode does not override repository branch protection, required CI, the AGENTS.md no-merge boundary or human production-release controls. Any change to those boundaries requires a separate explicit owner decision.
+
+Rollback is always human-controlled and requires an exact-content HMAC approval, regardless of the selected execution mode.
