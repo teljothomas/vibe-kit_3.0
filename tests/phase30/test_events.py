@@ -215,4 +215,4 @@ def test_rollback_requires_owner_signature_and_preserves_ledger_history(tmp_path
     assert history[-1]["event_type"] == "rollback_restored"
     assert result["event_sequence"] == 4
     report = events.verify_project(root)
-    assert report["human_decision_signatures_verified"] == 1
+    assert report["human_approval_signatures_verified"] == 1
