@@ -223,9 +223,12 @@ def preview_legacy_migration(root: str | Path, source_path: str | Path) -> Dict[
         raise EventError("legacy log contains a non-object entry")
     existing = {x["event_id"] for x in read_events(root)}
     missing = [x for x in converted if x["event_id"] not in existing]
+    canonical_source = json.dumps(source, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return {
         "source_schema": 2,
-        "source_sha256": hashlib.sha256(raw).hexdigest(),
+        # Canonical semantic hash is stable across Windows CRLF/LF checkout settings.
+        "source_sha256": hashlib.sha256(canonical_source).hexdigest(),
+        "source_raw_sha256": hashlib.sha256(raw).hexdigest(),
         "legacy_entries": len(converted),
         "already_imported": len(converted) - len(missing),
         "would_import": len(missing),
