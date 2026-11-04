@@ -115,3 +115,24 @@ def test_compact_snapshot_remains_bounded_after_100_transitions(tmp_path):
     assert report["events"] == 100
     assert report["state_bytes"] <= 4096
     assert len(snapshot["event_ledger"]["recent"]) == 5
+
+
+def test_reusing_event_id_with_different_data_is_rejected(tmp_path):
+    root = _project(tmp_path)
+    events.append_event(root, "decision_recorded", "30", "agent-autonomous",
+                        {"class": "architecture"}, event_id="fixed-id")
+    with pytest.raises(events.EventError, match="different details"):
+        events.append_event(root, "decision_recorded", "30", "agent-autonomous",
+                            {"class": "security"}, event_id="fixed-id")
+
+
+def test_event_schema_has_exact_runtime_fields():
+    schema_path = Path(__file__).resolve().parents[2] / "docs/contracts/event.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    required = {
+        "schema", "seq", "event_id", "event_type", "phase", "occurred_at",
+        "imported_at", "actor", "commit", "evidence_ref", "source", "details",
+        "prev_hash", "event_hash",
+    }
+    assert set(schema["required"]) == required
+    assert schema["additionalProperties"] is False
