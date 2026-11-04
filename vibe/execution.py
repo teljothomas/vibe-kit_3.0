@@ -133,12 +133,31 @@ def approve_decision(
     """Create an HMAC-signed human authorization for one exact decision statement."""
     root = Path(root).resolve()
     current = _require_active_phase30(root)
+    safe_summary = _safe_summary(summary)
+    result = evaluate_decision(root, decision_class)
+    if result["decision"] != "human_required":
+        raise ExecutionPolicyError("this decision is not awaiting human approval under the current mode")
+    history = events.read_events(root)
+    approved_waiting = {
+        item["details"].get("decision", {}).get("waiting_event_id")
+        for item in history if item["event_type"] == "decision_human_approved"
+    }
+    pending = next((
+        item for item in reversed(history)
+        if item["event_type"] == "decision_waiting_for_human"
+        and item["phase"] == str(current["phase"])
+        and item["details"].get("class") == str(decision_class)
+        and item["details"].get("summary") == safe_summary
+        and item["event_id"] not in approved_waiting
+    ), None)
+    if pending is None:
+        raise ExecutionPolicyError("no matching pending decision exists; record it first with vibe decision evaluate")
     key = approvals.approval_key(environ)
     reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
     payload = {
         "schema": 1, "phase": str(current["phase"]), "decision_class": str(decision_class),
-        "summary": _safe_summary(summary), "mode": load_mode(root), "reviewer": reviewer,
-        "approved_at": _now(),
+        "summary": safe_summary, "waiting_event_id": pending["event_id"],
+        "mode": load_mode(root), "reviewer": reviewer, "approved_at": _now(),
     }
     digest = hashlib.sha256(_canonical(payload)).hexdigest()
     expected = "APPROVE DECISION " + digest[:12]
