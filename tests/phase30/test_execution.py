@@ -91,3 +91,21 @@ def test_mode_change_rejects_non_tty_and_agent_marker(tmp_path):
         execution.set_mode(root, "autonomous", environ={approvals.KEY_ENV: KEY}, stdin=object())
     with pytest.raises(approvals.ApprovalError, match="agent marker"):
         execution.set_mode(root, "autonomous", environ={approvals.KEY_ENV: KEY, "CLAUDECODE": "1"}, stdin=TTY())
+
+
+def test_rejected_mode_confirmation_reverts_unsigned_policy_change(tmp_path):
+    root = make_repo(tmp_path)
+    def reject(prompt):
+        if "I reviewed this exact content" in prompt:
+            return "I reviewed this exact content"
+        if prompt.startswith("Reviewer name"):
+            return "Teljo Test"
+        return "WRONG DIGEST"
+    with pytest.raises(execution.ExecutionPolicyError, match="reverted"):
+        execution.set_mode(root, "autonomous", environ={approvals.KEY_ENV: KEY},
+                           stdin=TTY(), confirm=reject)
+    assert not (root / "docs/governance.json").exists()
+    staged = __import__("subprocess").run(
+        ["git", "diff", "--cached", "--name-only"], cwd=root, text=True, capture_output=True, check=True
+    ).stdout
+    assert "docs/governance.json" not in staged.splitlines()
