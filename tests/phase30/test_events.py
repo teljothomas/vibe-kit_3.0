@@ -151,3 +151,28 @@ def test_legacy_source_hash_is_stable_across_crlf_and_lf(tmp_path):
     second = events.preview_legacy_migration(root, crlf)
     assert first["source_sha256"] == second["source_sha256"]
     assert first["source_raw_sha256"] != second["source_raw_sha256"]
+
+
+def test_concurrent_writers_produce_one_valid_sequence(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    root = _project(tmp_path)
+    def write(number):
+        return events.append_event(
+            root, "decision_recorded", "30", "agent-autonomous",
+            {"ordinal": number}, event_id="parallel-" + str(number),
+        )
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(write, range(32)))
+    history = events.read_events(root)
+    assert len(results) == 32
+    assert len(history) == 32
+    assert [item["seq"] for item in history] == list(range(1, 33))
+    assert {item["details"]["ordinal"] for item in history} == set(range(32))
+
+
+def test_verify_rejects_ledger_without_matching_snapshot_pointer(tmp_path):
+    root = _project(tmp_path)
+    events.append_event(root, "decision_recorded", "30", "agent-autonomous", {"class": "tests"})
+    with pytest.raises(events.EventError, match="no event_ledger pointer"):
+        events.verify_project(root)
