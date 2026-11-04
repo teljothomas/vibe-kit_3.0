@@ -59,11 +59,13 @@ def test_autonomous_mode_is_owner_signed_and_protected(tmp_path, monkeypatch):
     assert verified["human_approval_signatures_unverified"] == 0
 
 
-def test_autonomous_mode_delegates_only_scoped_noncritical_decisions(tmp_path):
-    root = make_repo(tmp_path)
-    (root / "docs/governance.json").write_text(json.dumps({
-        "schema": 1, "protected_paths": [], "execution_mode": "autonomous"
-    }), encoding="utf-8")
+def test_autonomous_mode_delegates_only_scoped_noncritical_decisions(tmp_path, monkeypatch):
+    root = _activate_phase30(make_repo(tmp_path))
+    monkeypatch.setenv(approvals.KEY_ENV, KEY)
+    execution.set_mode(
+        root, "autonomous", environ={approvals.KEY_ENV: KEY},
+        stdin=TTY(), confirm=_confirm_mode,
+    )
     assert execution.evaluate_decision(root, "architecture")["decision"] == "delegated"
     assert execution.evaluate_decision(root, "phase_advance", gate_passed=False)["decision"] == "human_required"
     assert execution.evaluate_decision(root, "phase_advance", gate_passed=True)["decision"] == "delegated"
