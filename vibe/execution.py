@@ -153,6 +153,22 @@ def set_mode(
         raise ExecutionPolicyError("mode must be supervised or autonomous")
     previous = load_mode(root)
     if previous == mode:
+        if previous == "autonomous":
+            key = approvals.approval_key(environ)
+            phase = str(state.load(root / "docs/state.json")["phase"])
+            target = "docs/governance.json"
+            policy_path = root / target
+            approval_path = root / approvals.approval_path_for(root, phase, target)
+            if not policy_path.is_file() or not approval_path.is_file():
+                raise ExecutionPolicyError("autonomous mode is missing its owner approval record")
+            try:
+                record = json.loads(approval_path.read_text(encoding="utf-8"))
+                digest = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise ExecutionPolicyError("autonomous mode approval is unreadable") from exc
+            valid, reason = approvals.verify_record(record, key, target, digest, phase)
+            if not valid:
+                raise ExecutionPolicyError("autonomous mode approval is invalid: " + reason)
         return {"mode": mode, "changed": False}
     key = approvals.approval_key(environ)
     reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
