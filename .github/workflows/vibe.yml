@@ -1,0 +1,23 @@
+name: vibe-kit gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install the V3 CLI and test runner
+        run: python -m pip install -e ".[test]"
+      - name: Verify repository
+        run: python -m vibe verify
+      - name: Strict doctor
+        run: python -m vibe doctor --strict
+      - name: Phase gate
+        run: python scripts/gate --phase 28
