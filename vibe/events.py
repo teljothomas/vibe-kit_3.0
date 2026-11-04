@@ -106,11 +106,11 @@ def verify_bytes(raw: bytes) -> List[Dict[str, Any]]:
             raise EventError("ledger phase must be null or a two-digit string")
         if not isinstance(item["actor"], str) or not item["actor"] or len(item["actor"]) > 128:
             raise EventError("ledger actor must be a non-empty string of at most 128 characters")
-        if not isinstance(item["imported_at"], str):
+        if not isinstance(item["imported_at"], str) or not item["imported_at"]:
             raise EventError("ledger imported_at must be a timestamp string")
-        if item["occurred_at"] is not None and not isinstance(item["occurred_at"], str):
+        if item["occurred_at"] is not None and (not isinstance(item["occurred_at"], str) or not item["occurred_at"]):
             raise EventError("ledger occurred_at must be null or a timestamp string")
-        if not isinstance(item["source"], str) or not isinstance(item["details"], dict):
+        if not isinstance(item["source"], str) or not item["source"] or len(item["source"]) > 160 or not isinstance(item["details"], dict):
             raise EventError("ledger source or details has an invalid type")
         if item["prev_hash"] != previous:
             raise EventError("ledger previous hash mismatch at sequence " + str(seq))
@@ -155,6 +155,21 @@ def append_event(
     details = {} if details is None else details
     if not isinstance(details, dict):
         raise EventError("event details must be an object")
+    if not isinstance(event_type, str) or not event_type or len(event_type) > 80:
+        raise EventError("event_type must be a non-empty string of at most 80 characters")
+    if not isinstance(actor, str) or not actor or len(actor) > 128:
+        raise EventError("actor must be a non-empty string of at most 128 characters")
+    if phase is not None and (not isinstance(phase, str) or len(phase) != 2 or not phase.isdigit()):
+        raise EventError("phase must be null or a two-digit string")
+    if not isinstance(source, str) or not source or len(source) > 160:
+        raise EventError("source must be a non-empty string of at most 160 characters")
+    if event_id is not None and (not isinstance(event_id, str) or not event_id or len(event_id) > 80):
+        raise EventError("event_id must be a non-empty string of at most 80 characters")
+    for name, value in (("commit", commit), ("evidence_ref", evidence_ref)):
+        if value is not None and not isinstance(value, str):
+            raise EventError(name + " must be null or a string")
+    if occurred_at is not None and not isinstance(occurred_at, str):
+        raise EventError("occurred_at must be null or a timestamp string")
     with _lock(root):
         old = _read_events_unlocked(root)
         if event_id:
