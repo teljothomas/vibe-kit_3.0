@@ -23,7 +23,7 @@ def _events(args):
     root = Path.cwd()
     if parsed.action == "verify":
         result = events.verify_project(root)
-        print("EVENTS-OK count={events} state_bytes={state_bytes}/{state_limit_bytes} human_signatures={human_decision_signatures_verified} verified/{human_decision_signatures_unverified} unverified head={last_hash}".format(**result))
+        print("EVENTS-OK count={events} state_bytes={state_bytes}/{state_limit_bytes} human_signatures={human_approval_signatures_verified} verified/{human_approval_signatures_unverified} unverified head={last_hash}".format(**result))
         return 0
     if parsed.action == "migrate-v2":
         result = events.migrate_legacy_state(root, parsed.input, dry_run=not parsed.apply)
