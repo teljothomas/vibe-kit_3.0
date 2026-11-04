@@ -39,6 +39,17 @@ def _safe_summary(value: str) -> str:
     return text[:500]
 
 
+def _require_active_phase30(root: Path) -> Dict[str, Any]:
+    try:
+        current = state.load(root / "docs/state.json")
+        events.verify_project(root)
+    except (state.StateError, events.EventError) as exc:
+        raise ExecutionPolicyError("Phase 30 state or event ledger is not valid") from exc
+    if current.get("phase") != "30" or not isinstance(current.get("event_ledger"), dict):
+        raise ExecutionPolicyError("Phase 30 is not active; run the signed owner command: python -m vibe phase start 30")
+    return current
+
+
 def load_mode(root: str | Path = ".") -> str:
     policy = governance.load_policy(root)
     mode = policy.get("execution_mode", DEFAULT_MODE)
@@ -95,9 +106,9 @@ def record_decision(
 ) -> Dict[str, Any]:
     """Record a routine or delegated decision; supervised important decisions are blocked."""
     root = Path(root).resolve()
+    current = _require_active_phase30(root)
     result = evaluate_decision(root, decision_class, gate_passed=gate_passed,
                                within_phase_scope=within_phase_scope)
-    current = state.load(root / "docs/state.json")
     if result["decision"] == "human_required":
         event = _append_and_stage(
             root, "decision_waiting_for_human", str(current["phase"]), "agent",
@@ -121,9 +132,9 @@ def approve_decision(
 ) -> Dict[str, Any]:
     """Create an HMAC-signed human authorization for one exact decision statement."""
     root = Path(root).resolve()
-    reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
+    current = _require_active_phase30(root)
     key = approvals.approval_key(environ)
-    current = state.load(root / "docs/state.json")
+    reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
     payload = {
         "schema": 1, "phase": str(current["phase"]), "decision_class": str(decision_class),
         "summary": _safe_summary(summary), "mode": load_mode(root), "reviewer": reviewer,
@@ -151,11 +162,12 @@ def set_mode(
     mode = str(mode).strip().casefold()
     if mode not in {"supervised", "autonomous"}:
         raise ExecutionPolicyError("mode must be supervised or autonomous")
+    current = _require_active_phase30(root)
     previous = load_mode(root)
     if previous == mode:
         if previous == "autonomous":
             key = approvals.approval_key(environ)
-            phase = str(state.load(root / "docs/state.json")["phase"])
+            phase = str(current["phase"])
             target = "docs/governance.json"
             policy_path = root / target
             approval_path = root / approvals.approval_path_for(root, phase, target)
@@ -207,7 +219,7 @@ def set_mode(
         subprocess.run(["git", "reset", "-q", "HEAD", "--", target], cwd=str(root),
                        capture_output=True, text=True)
         raise ExecutionPolicyError("execution-mode digest confirmation did not match; unapproved setting was reverted")
-    phase = str(state.load(root / "docs/state.json")["phase"])
+    phase = str(current["phase"])
     record = approvals.make_record(phase, target, digest, "protected_path", reviewer, key)
     approval_rel = approvals.approval_path_for(root, phase, target)
     approval_path = root / approval_rel
