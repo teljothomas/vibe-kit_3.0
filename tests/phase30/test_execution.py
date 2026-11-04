@@ -109,3 +109,19 @@ def test_rejected_mode_confirmation_reverts_unsigned_policy_change(tmp_path):
         ["git", "diff", "--cached", "--name-only"], cwd=root, text=True, capture_output=True, check=True
     ).stdout
     assert "docs/governance.json" not in staged.splitlines()
+
+
+def test_shell_guard_blocks_owner_only_mode_approval_and_phase_start():
+    import importlib.util
+    from pathlib import Path
+    core_path = Path(__file__).resolve().parents[2] / "plugins/vibe-kit/scripts/guard_core.py"
+    spec = importlib.util.spec_from_file_location("phase30_guard_core", core_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    assert module.is_human_only_command("vibe mode set --mode autonomous", "Bash")
+    assert module.is_human_only_command("python -m vibe decision approve --class architecture", "Bash")
+    assert module.is_human_only_command("python -m vibe phase start 30", "Bash")
+    assert module.is_human_only_command("vibe mode set --mode supervised", "PowerShell")
+    assert not module.is_human_only_command("python -m vibe mode show", "Bash")
+    assert not module.is_human_only_command("python -m vibe decision evaluate --class tests", "Bash")
