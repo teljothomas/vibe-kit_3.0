@@ -1,6 +1,6 @@
 # Phase 29 — Governance and phase-contract integrity
 
-**Status:** in progress  
+**Status:** approved  
 **Purpose:** stop an agent from editing the phase contract that defines its own read scope or acceptance criteria, while preserving an explicit human maintenance path.
 
 ## Read

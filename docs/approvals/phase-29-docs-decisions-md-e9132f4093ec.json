@@ -1,0 +1,10 @@
+{
+  "approved_at": "2026-11-04T04:27:54+00:00",
+  "mode": "protected_path",
+  "phase": "29",
+  "reviewer": "Teljo Thomas",
+  "schema": 1,
+  "signature_hmac_sha256": "8e383768193e7ec0c72b95fec1dfac187beb014045c511a209d59ae6119fdb5f",
+  "target_path": "docs/decisions.md",
+  "target_sha256": "ba54e1a43fb3766578014235b9fc9f540c2ad08fd5178dc6cf429090b06bd986"
+}

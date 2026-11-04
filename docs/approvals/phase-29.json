@@ -1,0 +1,14 @@
+{
+  "approved_at": "2026-11-04T04:24:00+00:00",
+  "archive_path": "docs/amendments/phase-29-013847e82ebc.md",
+  "archive_sha256": "013847e82ebc98e4faae8d5885a6cee1571ec70333fc0be402fb3530462cfec8",
+  "mode": "phase_amendment",
+  "phase": "29",
+  "previous_sha256": "4e8e4501b0fb6780d13ce7c07eb7224ed46d0f1987dfcd581faa333698ecbdb8",
+  "proposal_sha256": "013847e82ebc98e4faae8d5885a6cee1571ec70333fc0be402fb3530462cfec8",
+  "reviewer": "Teljo Thomas",
+  "schema": 1,
+  "signature_hmac_sha256": "34b55ed4ce2b87330139094251755ea26072af1e515da64d5f025076cd7e23b4",
+  "target_path": "docs/phases/phase-29.md",
+  "target_sha256": "013847e82ebc98e4faae8d5885a6cee1571ec70333fc0be402fb3530462cfec8"
+}

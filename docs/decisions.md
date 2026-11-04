@@ -8,3 +8,5 @@ Append-only rationale. Each phase adds one concise entry; never rewrite past dec
 - 2026-11-04 — Phase 28 was approved after the repository owner explicitly instructed proceeding; its final main/feature-branch CI matrix passed 9/9 and the strict gate passed.
 - 2026-11-04 — Phase 29 keeps protected-path policy defaults in `vibe/governance.py`; the project template and standalone plugin guard are checked for exact parity. Phase source contracts are protected separately from generated context/repair artifacts.
 - 2026-11-04 — Protected content approvals are HMAC-SHA256 signatures over canonical metadata including the exact target-content digest. The key remains outside the repository in `VIBE_APPROVAL_KEY`; interactive human confirmation is a workflow guardrail, not an OS security boundary.
+
+- 2026-11-04 ? Phase 29 approved following signed owner closeout, successful 9/9 portability matrix, strict gate and PR #1 merge.
