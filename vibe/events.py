@@ -99,13 +99,13 @@ def verify_bytes(raw: bytes) -> List[Dict[str, Any]]:
         event_id = item["event_id"]
         if not isinstance(event_id, str) or not event_id or event_id in ids:
             raise EventError("ledger event ID is missing or duplicated")
-        if not isinstance(item["event_type"], str) or not item["event_type"]:
-            raise EventError("ledger event_type must be a non-empty string")
+        if not isinstance(item["event_type"], str) or not item["event_type"] or len(item["event_type"]) > 80:
+            raise EventError("ledger event_type must be a non-empty string of at most 80 characters")
         phase = item["phase"]
         if phase is not None and (not isinstance(phase, str) or len(phase) != 2 or not phase.isdigit()):
             raise EventError("ledger phase must be null or a two-digit string")
-        if not isinstance(item["actor"], str) or not item["actor"]:
-            raise EventError("ledger actor must be a non-empty string")
+        if not isinstance(item["actor"], str) or not item["actor"] or len(item["actor"]) > 128:
+            raise EventError("ledger actor must be a non-empty string of at most 128 characters")
         if not isinstance(item["imported_at"], str):
             raise EventError("ledger imported_at must be a timestamp string")
         if item["occurred_at"] is not None and not isinstance(item["occurred_at"], str):
@@ -125,14 +125,20 @@ def verify_bytes(raw: bytes) -> List[Dict[str, Any]]:
     return result
 
 
-def read_events(root: str | Path = ".") -> List[Dict[str, Any]]:
-    path = Path(root) / LEDGER
+def _read_events_unlocked(root: Path) -> List[Dict[str, Any]]:
+    path = root / LEDGER
     if not path.exists():
         return []
     try:
         return verify_bytes(path.read_bytes())
     except OSError as exc:
         raise EventError("event ledger cannot be read") from exc
+
+
+def read_events(root: str | Path = ".") -> List[Dict[str, Any]]:
+    root = Path(root).resolve()
+    with _lock(root):
+        return _read_events_unlocked(root)
 
 
 def append_event(
@@ -150,7 +156,7 @@ def append_event(
     if not isinstance(details, dict):
         raise EventError("event details must be an object")
     with _lock(root):
-        old = read_events(root)
+        old = _read_events_unlocked(root)
         if event_id:
             existing = next((x for x in old if x["event_id"] == event_id), None)
             if existing:
@@ -266,20 +272,27 @@ def write_snapshot(
     candidate.pop("event_ledger", None)
     event_details = dict(details or {})
     event_details["snapshot_after"] = candidate
-    # Preflight the size with fixed-width placeholders before appending the event.
+    # Preflight the size with worst-case recent-summary placeholders before
+    # appending the event, so a size failure never occurs after a durable append.
     estimated = dict(candidate)
     estimated["event_ledger"] = {
         "schema": SCHEMA, "sequence": 99999999, "last_event_id": "evt-" + ("0" * 32),
-        "last_event_hash": "0" * 64, "recent": [],
+        "last_event_hash": "0" * 64,
+        "recent": [
+            {"event_id": "legacy-v2-9999-" + ("0" * 12), "event_type": "x" * 80,
+             "phase": "99", "occurred_at": "2000-01-01T00:00:00Z", "actor": "x" * 128}
+            for _ in range(RECENT_LIMIT)
+        ],
     }
     if len((json.dumps(estimated, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")) > MAX_STATE_BYTES:
         raise EventError("compact state would exceed " + str(MAX_STATE_BYTES) + " bytes")
     event = append_event(root, event_type, str(candidate.get("phase")), actor, event_details)
     history = read_events(root)
+    committed_history = history[:event["seq"]]
     recent = [
         {"event_id": x["event_id"], "event_type": x["event_type"], "phase": x["phase"],
          "occurred_at": x["occurred_at"], "actor": x["actor"]}
-        for x in history[-RECENT_LIMIT:]
+        for x in committed_history[-RECENT_LIMIT:]
     ]
     candidate["event_ledger"] = {
         "schema": SCHEMA, "sequence": event["seq"], "last_event_id": event["event_id"],
@@ -378,15 +391,38 @@ def verify_project(root: str | Path = ".") -> Dict[str, Any]:
     if len(raw) > MAX_STATE_BYTES:
         raise EventError("state exceeds " + str(MAX_STATE_BYTES) + " bytes")
     pointer = state.get("event_ledger") if isinstance(state, dict) else None
+    snapshot_events = [item for item in history if isinstance(item["details"].get("snapshot_after"), dict)]
+    if history and not isinstance(pointer, dict):
+        raise EventError("ledger has events but state has no event_ledger pointer")
     if pointer is not None:
-        if not isinstance(pointer, dict) or not isinstance(pointer.get("sequence"), int):
+        if not isinstance(pointer, dict) or isinstance(pointer.get("sequence"), bool) or not isinstance(pointer.get("sequence"), int):
             raise EventError("state event_ledger pointer is invalid")
         seq = pointer["sequence"]
         if seq < 1 or seq > len(history):
             raise EventError("state event_ledger sequence is outside the ledger")
+        if not snapshot_events or snapshot_events[-1]["seq"] != seq:
+            raise EventError("state event_ledger pointer does not reference the latest snapshot event")
         referenced = history[seq - 1]
         if pointer.get("last_event_id") != referenced["event_id"] or pointer.get("last_event_hash") != referenced["event_hash"]:
             raise EventError("state event_ledger hash pointer does not match")
+    legacy = state.get("legacy_history") if isinstance(state, dict) else None
+    if legacy is not None:
+        if not isinstance(legacy, dict) or not isinstance(legacy.get("summary_event_id"), str):
+            raise EventError("legacy history summary pointer is invalid")
+        summary = next((item for item in history if item["event_id"] == legacy["summary_event_id"]), None)
+        if summary is None or summary["event_type"] != "legacy_state_imported":
+            raise EventError("legacy history summary event is missing")
+        details = summary["details"]
+        ids = details.get("imported_event_ids")
+        if details.get("source_sha256") != legacy.get("source_sha256") or details.get("entries") != legacy.get("imported_entries"):
+            raise EventError("legacy history summary does not match the state marker")
+        if not isinstance(ids, list) or len(ids) != legacy.get("imported_entries"):
+            raise EventError("legacy history imported event list is incomplete")
+        indexed = {item["event_id"]: item for item in history}
+        for event_id in ids:
+            item = indexed.get(event_id)
+            if item is None or item["event_type"] != "legacy_phase_recorded" or item["source"] != "v2-state-schema-2":
+                raise EventError("legacy history references a missing or invalid imported event")
     return {
         "events": len(history),
         "last_hash": history[-1]["event_hash"] if history else GENESIS,
