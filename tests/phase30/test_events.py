@@ -176,3 +176,43 @@ def test_verify_rejects_ledger_without_matching_snapshot_pointer(tmp_path):
     events.append_event(root, "decision_recorded", "30", "agent-autonomous", {"class": "tests"})
     with pytest.raises(events.EventError, match="no event_ledger pointer"):
         events.verify_project(root)
+
+
+def test_rollback_requires_owner_signature_and_preserves_ledger_history(tmp_path, monkeypatch):
+    from tests.phase29.conftest import TTY
+    from vibe import approvals
+
+    key = "phase30-rollback-test-approval-key-0123456789"
+    root = _project(tmp_path)
+    first = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    events.write_snapshot(root, first, "phase_started", "human", {"phase": "29"})
+    second = dict(first)
+    second["phase"] = "30"
+    second["status"] = "in_progress"
+    second["last_gate"] = {"phase": "30", "status": "not_run", "commit": None}
+    events.write_snapshot(root, second, "phase_started", "human", {"phase": "30"})
+
+    def confirm(prompt):
+        if "I reviewed this exact content" in prompt:
+            return "I reviewed this exact content"
+        if prompt.startswith("Reviewer name"):
+            return "Teljo Test"
+        if prompt.startswith("Review the restore target"):
+            return prompt.split("type ", 1)[1].rstrip(": ")
+        raise AssertionError("unexpected prompt: " + prompt)
+
+    monkeypatch.setenv(approvals.KEY_ENV, key)
+    result = events.rollback_snapshot(
+        root, "Restore the last known good snapshot",
+        environ={approvals.KEY_ENV: key}, stdin=TTY(), confirm=confirm,
+    )
+    restored = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    assert restored["phase"] == "29"
+    assert restored["status"] == "in_progress"
+    history = events.read_events(root)
+    assert len(history) == 4
+    assert history[-2]["event_type"] == "rollback_approved"
+    assert history[-1]["event_type"] == "rollback_restored"
+    assert result["event_sequence"] == 4
+    report = events.verify_project(root)
+    assert report["human_decision_signatures_verified"] == 1
