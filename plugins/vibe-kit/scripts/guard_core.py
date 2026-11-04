@@ -156,12 +156,20 @@ def is_human_only_command(command: str, tool_name: str) -> bool:
             base = token.replace("\\", "/").rsplit("/", 1)[-1]
             rest = lowered[index + 1:]
             if base in {"vibe", "vibe.exe", "vibe.py"}:
-                if rest[:2] in (["amendment", "apply"], ["governance", "approve-staged"], ["hooks", "uninstall"]):
+                if rest[:2] in (
+                    ["amendment", "apply"], ["governance", "approve-staged"],
+                    ["hooks", "uninstall"], ["mode", "set"], ["decision", "approve"],
+                    ["phase", "start"],
+                ):
                     return True
             if base in {"python", "python3", "py", "python.exe", "python3.exe"}:
                 for j, item in enumerate(rest[:-1]):
                     if item == "-m" and rest[j + 1] == "vibe":
-                        if rest[j + 2:j + 4] in (["amendment", "apply"], ["governance", "approve-staged"], ["hooks", "uninstall"]):
+                        if rest[j + 2:j + 4] in (
+                            ["amendment", "apply"], ["governance", "approve-staged"],
+                            ["hooks", "uninstall"], ["mode", "set"], ["decision", "approve"],
+                            ["phase", "start"],
+                        ):
                             return True
     return False
 
