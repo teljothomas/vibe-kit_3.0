@@ -154,25 +154,43 @@ def set_mode(
     previous = load_mode(root)
     if previous == mode:
         return {"mode": mode, "changed": False}
-    reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
     key = approvals.approval_key(environ)
+    reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
     policy = governance.load_policy(root)
+    policy_path = root / "docs" / "governance.json"
+    existed_before = policy_path.exists()
+    previous_bytes = policy_path.read_bytes() if existed_before else None
+    staged_check = subprocess.run(
+        ["git", "diff", "--cached", "--quiet", "--", "docs/governance.json"],
+        cwd=str(root), capture_output=True,
+    )
+    if staged_check.returncode not in (0,):
+        raise ExecutionPolicyError("docs/governance.json already has staged changes; commit or unstage them before changing mode")
     document = dict(policy)
     document["execution_mode"] = mode
     document["mode_updated_at"] = _now()
     document["mode_updated_by"] = reviewer
     encoded = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    policy_path = root / "docs" / "governance.json"
     policy_path.parent.mkdir(parents=True, exist_ok=True)
     policy_path.write_bytes(encoded)
     target = "docs/governance.json"
     staged = subprocess.run(["git", "add", "--", target], cwd=str(root), capture_output=True, text=True)
     if staged.returncode:
+        if existed_before and previous_bytes is not None:
+            policy_path.write_bytes(previous_bytes)
+        else:
+            policy_path.unlink(missing_ok=True)
         raise ExecutionPolicyError("mode setting was written but could not be staged")
     digest = hashlib.sha256(approvals.staged_bytes(root, target)).hexdigest()
     expected = "SET MODE " + mode + " " + digest[:12]
     if confirm("To change execution mode, type " + expected + ": ").strip() != expected:
-        raise ExecutionPolicyError("execution-mode digest confirmation did not match")
+        if existed_before and previous_bytes is not None:
+            policy_path.write_bytes(previous_bytes)
+        else:
+            policy_path.unlink(missing_ok=True)
+        subprocess.run(["git", "reset", "-q", "HEAD", "--", target], cwd=str(root),
+                       capture_output=True, text=True)
+        raise ExecutionPolicyError("execution-mode digest confirmation did not match; unapproved setting was reverted")
     phase = str(state.load(root / "docs/state.json")["phase"])
     record = approvals.make_record(phase, target, digest, "protected_path", reviewer, key)
     approval_rel = approvals.approval_path_for(root, phase, target)
