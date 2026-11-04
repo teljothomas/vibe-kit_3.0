@@ -138,9 +138,9 @@ def test_event_verifier_checks_human_decision_hmac_when_key_is_available(tmp_pat
     )
     monkeypatch.setenv(approvals.KEY_ENV, KEY)
     verified = events.verify_project(root)
-    assert verified["human_decision_signatures_verified"] == 1
-    assert verified["human_decision_signatures_unverified"] == 0
+    assert verified["human_approval_signatures_verified"] == 1
+    assert verified["human_approval_signatures_unverified"] == 0
     monkeypatch.delenv(approvals.KEY_ENV, raising=False)
     unverified = events.verify_project(root)
-    assert unverified["human_decision_signatures_verified"] == 0
-    assert unverified["human_decision_signatures_unverified"] == 1
+    assert unverified["human_approval_signatures_verified"] == 0
+    assert unverified["human_approval_signatures_unverified"] == 1
