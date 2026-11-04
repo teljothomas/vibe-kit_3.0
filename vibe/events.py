@@ -165,11 +165,13 @@ def append_event(
         raise EventError("source must be a non-empty string of at most 160 characters")
     if event_id is not None and (not isinstance(event_id, str) or not event_id or len(event_id) > 80):
         raise EventError("event_id must be a non-empty string of at most 80 characters")
+    if imported_at is not None and (not isinstance(imported_at, str) or not imported_at or len(imported_at) > 40):
+        raise EventError("imported_at must be a non-empty timestamp of at most 40 characters")
     for name, value in (("commit", commit), ("evidence_ref", evidence_ref)):
         if value is not None and not isinstance(value, str):
             raise EventError(name + " must be null or a string")
-    if occurred_at is not None and not isinstance(occurred_at, str):
-        raise EventError("occurred_at must be null or a timestamp string")
+    if occurred_at is not None and (not isinstance(occurred_at, str) or not occurred_at or len(occurred_at) > 40):
+        raise EventError("occurred_at must be null or a non-empty timestamp of at most 40 characters")
     with _lock(root):
         old = _read_events_unlocked(root)
         if event_id:
@@ -291,11 +293,11 @@ def write_snapshot(
     # appending the event, so a size failure never occurs after a durable append.
     estimated = dict(candidate)
     estimated["event_ledger"] = {
-        "schema": SCHEMA, "sequence": 99999999, "last_event_id": "evt-" + ("0" * 32),
+        "schema": SCHEMA, "sequence": 9999999999, "last_event_id": "x" * 80,
         "last_event_hash": "0" * 64,
         "recent": [
-            {"event_id": "legacy-v2-9999-" + ("0" * 12), "event_type": "x" * 80,
-             "phase": "99", "occurred_at": "2000-01-01T00:00:00Z", "actor": "x" * 128}
+            {"event_id": "x" * 80, "event_type": "x" * 80,
+             "phase": "99", "occurred_at": "x" * 40, "actor": "x" * 128}
             for _ in range(RECENT_LIMIT)
         ],
     }
@@ -425,9 +427,10 @@ def migrate_legacy_state(
         raise EventError("current V3 state is unreadable; legacy events were not imported") from exc
     previous = current.get("legacy_history")
     if isinstance(previous, dict) and previous.get("source_sha256") == preview["source_sha256"]:
+        verified = verify_project(root)
         return {"legacy_entries": preview["legacy_entries"], "already_migrated": True,
-                "imported_now": 0, "final_sequence": len(read_events(root)),
-                "state_bytes": len(state_path.read_bytes())}
+                "imported_now": 0, "final_sequence": verified["events"],
+                "state_bytes": verified["state_bytes"]}
     timestamp = imported_at or _now()
     imported_ids = []
     for item in preview["events"]:
@@ -451,10 +454,11 @@ def migrate_legacy_state(
     }
     written = write_snapshot(root, current, "legacy_migration_snapshot_written", "vibe-migration",
                              {"source_sha256": preview["source_sha256"]})
+    verified = verify_project(root)
     return {
         "legacy_entries": preview["legacy_entries"], "already_imported": preview["already_imported"],
         "imported_now": preview["would_import"], "final_sequence": written["event_ledger"]["sequence"],
-        "state_bytes": len((root / "docs/state.json").read_bytes()),
+        "state_bytes": verified["state_bytes"],
     }
 
 
