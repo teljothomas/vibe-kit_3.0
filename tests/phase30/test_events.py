@@ -216,3 +216,24 @@ def test_rollback_requires_owner_signature_and_preserves_ledger_history(tmp_path
     assert result["event_sequence"] == 4
     report = events.verify_project(root)
     assert report["human_approval_signatures_verified"] == 1
+
+
+def test_concurrent_snapshot_writers_leave_pointer_at_latest_snapshot(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    root = _project(tmp_path)
+    initial = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    def write(number):
+        candidate = dict(initial)
+        candidate["next"] = "concurrent-" + str(number)
+        return events.write_snapshot(root, candidate, "phase_progress_recorded", "agent",
+                                     {"writer": number})
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(write, range(24)))
+    verified = events.verify_project(root)
+    history = events.read_events(root)
+    snapshot_events = [item for item in history if "snapshot_after" in item["details"]]
+    pointer = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))["event_ledger"]
+    assert pointer["sequence"] == snapshot_events[-1]["seq"]
+    assert pointer["last_event_id"] == snapshot_events[-1]["event_id"]
+    assert verified["events"] == len(history)
