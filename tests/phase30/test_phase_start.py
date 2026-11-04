@@ -22,7 +22,8 @@ def _confirm(prompt):
     raise AssertionError("unexpected prompt: " + prompt)
 
 
-def test_phase_start_imports_history_and_signs_all_protected_outputs(tmp_path):
+def test_phase_start_imports_history_and_signs_all_protected_outputs(tmp_path, monkeypatch):
+    monkeypatch.setenv(approvals.KEY_ENV, KEY)
     root = make_repo(tmp_path)
     current = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
     current["status"] = "approved"
