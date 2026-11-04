@@ -1,0 +1,31 @@
+name: Import V3 foundation
+
+on:
+  push:
+    branches:
+      - phase/28-v3-foundation
+    paths:
+      - ".bootstrap/payload.part-*"
+      - "scripts/bootstrap_import.py"
+      - ".github/workflows/import-v3.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vibe-kit-v3-foundation-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase/28-v3-foundation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Restore the source tree and commit it
+        run: python scripts/bootstrap_import.py
