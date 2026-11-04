@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 SCHEMA = 1
 LEDGER = Path("docs/events/ledger.jsonl")
 LOCK = Path(".vibe/locks/events.lock")
+SNAPSHOT_LOCK = Path(".vibe/locks/snapshot.lock")
 GENESIS = "0" * 64
 MAX_STATE_BYTES = 4096
 RECENT_LIMIT = 5
@@ -40,8 +41,8 @@ def _hash(value: Dict[str, Any]) -> str:
 
 
 @contextlib.contextmanager
-def _lock(root: Path):
-    path = root / LOCK
+def _lock(root: Path, relative: Path = LOCK):
+    path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     with _PROCESS_LOCK:
         handle = open(path, "a+b")
@@ -279,7 +280,7 @@ def _atomic_write(path: Path, raw: bytes) -> None:
     os.replace(temp, path)
 
 
-def write_snapshot(
+def _write_snapshot_unlocked(
     root: str | Path, snapshot: Dict[str, Any], event_type: str, actor: str,
     details: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -321,8 +322,17 @@ def write_snapshot(
     _atomic_write(root / "docs/state.json", raw)
     return candidate
 
+def write_snapshot(
+    root: str | Path, snapshot: Dict[str, Any], event_type: str, actor: str,
+    details: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    root = Path(root).resolve()
+    with _lock(root, SNAPSHOT_LOCK):
+        return _write_snapshot_unlocked(root, snapshot, event_type, actor, details)
 
-def replay_snapshot(root: str | Path = ".") -> Dict[str, Any]:
+
+
+def _replay_snapshot_unlocked(root: str | Path = ".") -> Dict[str, Any]:
     """Recover a snapshot after a crash between durable event append and state replace."""
     root = Path(root).resolve()
     history = read_events(root)
@@ -345,6 +355,12 @@ def replay_snapshot(root: str | Path = ".") -> Dict[str, Any]:
         raise EventError("replayed state exceeds " + str(MAX_STATE_BYTES) + " bytes")
     _atomic_write(root / "docs/state.json", raw)
     return candidate
+
+def replay_snapshot(root: str | Path = ".") -> Dict[str, Any]:
+    root = Path(root).resolve()
+    with _lock(root, SNAPSHOT_LOCK):
+        return _replay_snapshot_unlocked(root)
+
 
 
 def rollback_snapshot(
@@ -462,7 +478,7 @@ def migrate_legacy_state(
     }
 
 
-def verify_project(root: str | Path = ".") -> Dict[str, Any]:
+def _verify_project_unlocked(root: str | Path = ".") -> Dict[str, Any]:
     root = Path(root).resolve()
     history = read_events(root)
     state_path = root / "docs/state.json"
@@ -582,3 +598,9 @@ def verify_project(root: str | Path = ".") -> Dict[str, Any]:
         "human_approval_signatures_verified": human_verified,
         "human_approval_signatures_unverified": human_unverified,
     }
+def verify_project(root: str | Path = ".") -> Dict[str, Any]:
+    root = Path(root).resolve()
+    with _lock(root, SNAPSHOT_LOCK):
+        return _verify_project_unlocked(root)
+
+
