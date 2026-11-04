@@ -516,29 +516,51 @@ def verify_project(root: str | Path = ".") -> Dict[str, Any]:
     except approval_module.ApprovalError:
         pass
     for item in history:
-        if item["event_type"] not in {"decision_human_approved", "rollback_approved"}:
+        if item["event_type"] not in {"decision_human_approved", "rollback_approved", "governance_mode_changed"}:
             continue
         details = item["details"]
         is_rollback = item["event_type"] == "rollback_approved"
-        payload = details.get("approval_payload") if is_rollback else details.get("decision")
-        record = details.get("approval_record")
-        if not isinstance(payload, dict) or not isinstance(record, dict):
-            raise EventError("human approval event is missing its approval payload")
-        digest = hashlib.sha256(_canonical(payload)).hexdigest()
-        if is_rollback:
-            target = "snapshot-rollback:" + str(payload.get("from_snapshot_event_id")) + ":" + str(payload.get("to_snapshot_event_id"))
-            mode = "rollback_approval"
+        is_mode_change = item["event_type"] == "governance_mode_changed"
+        if is_mode_change:
+            record = details.get("approval_record_data")
+            digest = details.get("config_sha256")
+            target = "docs/governance.json"
+            mode = "protected_path"
+            reviewer = item["actor"]
+            valid_shape = (
+                isinstance(record, dict)
+                and isinstance(digest, str)
+                and len(digest) == 64
+                and record.get("target_path") == target
+                and record.get("target_sha256") == digest
+                and record.get("mode") == mode
+                and record.get("reviewer") == reviewer
+                and details.get("approval_record") == approval_module.approval_path_for(
+                    root, str(item["phase"]), target
+                )
+            )
         else:
-            target = "decision:" + str(item["phase"]) + ":" + digest[:12]
-            mode = "decision_approval"
-        digest_field = details.get("approval_sha256") if is_rollback else details.get("decision_sha256")
-        valid_shape = (
-            digest_field == digest
-            and payload.get("phase") == item["phase"]
-            and payload.get("reviewer") == item["actor"]
-            and record.get("mode") == mode
-            and record.get("reviewer") == item["actor"]
-        )
+            payload = details.get("approval_payload") if is_rollback else details.get("decision")
+            record = details.get("approval_record")
+            if not isinstance(payload, dict) or not isinstance(record, dict):
+                raise EventError("human approval event is missing its approval payload")
+            digest = hashlib.sha256(_canonical(payload)).hexdigest()
+            if is_rollback:
+                target = "snapshot-rollback:" + str(payload.get("from_snapshot_event_id")) + ":" + str(payload.get("to_snapshot_event_id"))
+                mode = "rollback_approval"
+                digest_field = details.get("approval_sha256")
+            else:
+                target = "decision:" + str(item["phase"]) + ":" + digest[:12]
+                mode = "decision_approval"
+                digest_field = details.get("decision_sha256")
+            reviewer = item["actor"]
+            valid_shape = (
+                digest_field == digest
+                and payload.get("phase") == item["phase"]
+                and payload.get("reviewer") == reviewer
+                and record.get("mode") == mode
+                and record.get("reviewer") == reviewer
+            )
         if not valid_shape:
             raise EventError("human approval payload does not match its event")
         if approval_key is None:
