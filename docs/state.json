@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "phase": "28",
+  "status": "in_progress",
+  "last_gate": {
+    "phase": "28",
+    "status": "not_run",
+    "commit": null
+  },
+  "next": "Complete local and remote Phase 28 portability checks"
+}

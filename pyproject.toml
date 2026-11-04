@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vibe-kit"
+version = "3.0.0a1"
+description = "A local-first engineering protocol and CLI for AI-assisted software development."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Teljo Thomas" }]
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+vibe = "vibe.cli:main"
+
+[tool.setuptools]
+packages = ["vibe"]

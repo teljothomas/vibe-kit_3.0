@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Small, deterministic phase gate. Pytest is a development/CI dependency."""
+import argparse
+import subprocess
+import sys
+
+p = argparse.ArgumentParser()
+p.add_argument("--phase", required=True)
+args = p.parse_args()
+if args.phase != "28":
+    print("G-FAIL phase-" + args.phase + " — no gate registered for this phase")
+    raise SystemExit(1)
+try:
+    proc = subprocess.run([sys.executable, "-m", "pytest", "-q"], text=True, capture_output=True)
+except OSError as exc:
+    print("G-FAIL phase-28 — could not start pytest: " + str(exc))
+    raise SystemExit(1)
+summary = next((line.strip() for line in reversed(proc.stdout.splitlines()) if " passed" in line or " failed" in line), "pytest produced no summary")
+if proc.returncode == 0:
+    print("G-PASS phase-28 — " + summary)
+else:
+    failure = next((line.strip() for line in proc.stdout.splitlines() if line.startswith("FAILED ")), summary)
+    print("G-FAIL phase-28 — " + failure[:300])
+raise SystemExit(proc.returncode)
