@@ -9,6 +9,15 @@ from tests.phase29.conftest import TTY, interactive_confirm, make_repo
 KEY = "phase30-execution-test-key-0123456789abcdef"
 
 
+def _activate_phase30(root):
+    current = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    current["phase"] = "30"
+    current["status"] = "in_progress"
+    current["last_gate"] = {"phase": "30", "status": "not_run", "commit": None}
+    execution.events.write_snapshot(root, current, "phase_started", "human", {"phase": "30"})
+    return root
+
+
 def _confirm_mode(prompt):
     if "I reviewed this exact content" in prompt:
         return "I reviewed this exact content"
@@ -30,7 +39,7 @@ def test_new_projects_default_to_supervised_mode(tmp_path):
 
 
 def test_autonomous_mode_is_owner_signed_and_protected(tmp_path, monkeypatch):
-    root = make_repo(tmp_path)
+    root = _activate_phase30(make_repo(tmp_path))
     monkeypatch.setenv(approvals.KEY_ENV, KEY)
     result = execution.set_mode(root, "autonomous", environ={approvals.KEY_ENV: KEY},
                                 stdin=TTY(), confirm=_confirm_mode)
@@ -61,7 +70,7 @@ def test_autonomous_mode_delegates_only_scoped_noncritical_decisions(tmp_path):
 
 
 def test_supervised_routine_decisions_are_recorded_but_important_decisions_wait(tmp_path):
-    root = make_repo(tmp_path)
+    root = _activate_phase30(make_repo(tmp_path))
     routine = execution.record_decision(root, "tests", "Run unit tests")
     assert routine["decision"] == "allowed"
     important = execution.record_decision(root, "architecture", "Choose module boundaries")
@@ -71,7 +80,7 @@ def test_supervised_routine_decisions_are_recorded_but_important_decisions_wait(
 
 
 def test_human_decision_approval_is_digest_bound(tmp_path):
-    root = make_repo(tmp_path)
+    root = _activate_phase30(make_repo(tmp_path))
     result = execution.approve_decision(root, "architecture", "Use an append-only event journal",
                                         environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=_confirm_mode)
     event = execution.events.read_events(root)[0]
@@ -79,14 +88,14 @@ def test_human_decision_approval_is_digest_bound(tmp_path):
     payload = event["details"]["decision"]
     digest = __import__("hashlib").sha256(execution._canonical(payload)).hexdigest()
     valid, reason = approvals.verify_record(
-        record, KEY.encode(), "decision:29:" + digest[:12], digest, "29"
+        record, KEY.encode(), "decision:30:" + digest[:12], digest, "30"
     )
     assert valid, reason
     assert result["decision"] == "human_approved"
 
 
 def test_mode_change_rejects_non_tty_and_agent_marker(tmp_path):
-    root = make_repo(tmp_path)
+    root = _activate_phase30(make_repo(tmp_path))
     with pytest.raises(approvals.ApprovalError, match="TTY"):
         execution.set_mode(root, "autonomous", environ={approvals.KEY_ENV: KEY}, stdin=object())
     with pytest.raises(approvals.ApprovalError, match="agent marker"):
@@ -94,7 +103,7 @@ def test_mode_change_rejects_non_tty_and_agent_marker(tmp_path):
 
 
 def test_rejected_mode_confirmation_reverts_unsigned_policy_change(tmp_path):
-    root = make_repo(tmp_path)
+    root = _activate_phase30(make_repo(tmp_path))
     def reject(prompt):
         if "I reviewed this exact content" in prompt:
             return "I reviewed this exact content"
@@ -128,10 +137,8 @@ def test_shell_guard_blocks_owner_only_mode_approval_and_phase_start():
 
 
 def test_event_verifier_checks_human_decision_hmac_when_key_is_available(tmp_path, monkeypatch):
-    root = make_repo(tmp_path)
-    initial = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    root = _activate_phase30(make_repo(tmp_path))
     events = execution.events
-    events.write_snapshot(root, initial, "phase_started", "human", {"phase": "29"})
     execution.approve_decision(
         root, "architecture", "Use a deterministic append-only event ledger",
         environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=_confirm_mode,
