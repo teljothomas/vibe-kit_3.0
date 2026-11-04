@@ -80,11 +80,14 @@ def _verify_target_approval(root: Path, phase: str, target: str, data: bytes,
         if mode != "phase_amendment":
             return "phase source changes require a proposal-based amendment approval"
         archive_path = record.get("archive_path")
-        proposal_sha = record.get("proposal_sha256")
+        archive_sha = record.get("archive_sha256")
         if not isinstance(archive_path, str) or archive_path not in staged:
             return "approved amendment archive must be staged with the phase contract"
-        if not isinstance(proposal_sha, str) or hashlib.sha256(_staged_bytes(root, archive_path)).hexdigest() != proposal_sha:
-            return "amendment archive digest does not match the signed proposal digest"
+        staged_archive = _staged_bytes(root, archive_path)
+        if not isinstance(archive_sha, str) or hashlib.sha256(staged_archive).hexdigest() != archive_sha:
+            return "amendment archive digest does not match the signed archive digest"
+        if hashlib.sha256(staged_archive).hexdigest() != digest:
+            return "amendment archive and phase contract staged contents differ"
     elif mode != "protected_path":
         return "protected non-phase files require an explicit protected_path approval"
     return None
