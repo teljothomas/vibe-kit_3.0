@@ -434,13 +434,54 @@ def verify_project(root: str | Path = ".") -> Dict[str, Any]:
         if not isinstance(ids, list) or len(ids) != legacy.get("imported_entries"):
             raise EventError("legacy history imported event list is incomplete")
         indexed = {item["event_id"]: item for item in history}
-        for event_id in ids:
+        if len(set(ids)) != len(ids):
+            raise EventError("legacy history imported event IDs are duplicated")
+        for index, event_id in enumerate(ids):
             item = indexed.get(event_id)
             if item is None or item["event_type"] != "legacy_phase_recorded" or item["source"] != "v2-state-schema-2":
                 raise EventError("legacy history references a missing or invalid imported event")
+            if item["details"].get("legacy_index") != index or not isinstance(item["details"].get("legacy_entry"), dict):
+                raise EventError("legacy history entry ordering or source payload is invalid")
+
+    human_verified = 0
+    human_unverified = 0
+    from . import approvals as approval_module
+    approval_key = None
+    try:
+        approval_key = approval_module.approval_key()
+    except approval_module.ApprovalError:
+        pass
+    for item in history:
+        if item["event_type"] != "decision_human_approved":
+            continue
+        details = item["details"]
+        payload = details.get("decision")
+        record = details.get("approval_record")
+        if not isinstance(payload, dict) or not isinstance(record, dict):
+            raise EventError("human decision event is missing its approval payload")
+        digest = hashlib.sha256(_canonical(payload)).hexdigest()
+        target = "decision:" + str(item["phase"]) + ":" + digest[:12]
+        valid_shape = (
+            details.get("decision_sha256") == digest
+            and payload.get("phase") == item["phase"]
+            and payload.get("reviewer") == item["actor"]
+            and record.get("mode") == "decision_approval"
+            and record.get("reviewer") == item["actor"]
+        )
+        if not valid_shape:
+            raise EventError("human decision approval payload does not match its event")
+        if approval_key is None:
+            human_unverified += 1
+        else:
+            valid, reason = approval_module.verify_record(record, approval_key, target, digest, str(item["phase"]))
+            if not valid:
+                raise EventError("human decision HMAC verification failed: " + reason)
+            human_verified += 1
     return {
         "events": len(history),
         "last_hash": history[-1]["event_hash"] if history else GENESIS,
         "state_bytes": len(raw),
         "state_limit_bytes": MAX_STATE_BYTES,
+        "human_decision_signatures_verified": human_verified,
+        "human_decision_signatures_unverified": human_unverified,
     }
