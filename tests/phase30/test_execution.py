@@ -84,6 +84,7 @@ def test_supervised_routine_decisions_are_recorded_but_important_decisions_wait(
 
 def test_human_decision_approval_is_digest_bound(tmp_path):
     root = _activate_phase30(make_repo(tmp_path))
+    execution.record_decision(root, "architecture", "Use an append-only event journal")
     result = execution.approve_decision(root, "architecture", "Use an append-only event journal",
                                         environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=_confirm_mode)
     event = execution.events.read_events(root)[-1]
@@ -142,6 +143,7 @@ def test_shell_guard_blocks_owner_only_mode_approval_and_phase_start():
 def test_event_verifier_checks_human_decision_hmac_when_key_is_available(tmp_path, monkeypatch):
     root = _activate_phase30(make_repo(tmp_path))
     events = execution.events
+    execution.record_decision(root, "architecture", "Use a deterministic append-only event ledger")
     execution.approve_decision(
         root, "architecture", "Use a deterministic append-only event ledger",
         environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=_confirm_mode,
