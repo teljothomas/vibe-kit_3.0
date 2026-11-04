@@ -43,6 +43,9 @@ def main() -> None:
             relative = Path(*name.parts[1:])
             if not relative.parts:
                 continue
+            # Workflow files require a separate GitHub App workflow permission.
+            if relative.as_posix().startswith(".github/workflows/"):
+                continue
             destination = ROOT / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             source = tf.extractfile(member)
@@ -52,7 +55,6 @@ def main() -> None:
 
     shutil.rmtree(PAYLOAD_DIR)
     (ROOT / "scripts" / "bootstrap_import.py").unlink(missing_ok=True)
-    (ROOT / ".github" / "workflows" / "import-v3.yml").unlink(missing_ok=True)
 
     run("git", "config", "user.name", "github-actions[bot]")
     run("git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
