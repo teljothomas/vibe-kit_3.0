@@ -125,3 +125,22 @@ def test_shell_guard_blocks_owner_only_mode_approval_and_phase_start():
     assert module.is_human_only_command("vibe mode set --mode supervised", "PowerShell")
     assert not module.is_human_only_command("python -m vibe mode show", "Bash")
     assert not module.is_human_only_command("python -m vibe decision evaluate --class tests", "Bash")
+
+
+def test_event_verifier_checks_human_decision_hmac_when_key_is_available(tmp_path, monkeypatch):
+    root = make_repo(tmp_path)
+    initial = json.loads((root / "docs/state.json").read_text(encoding="utf-8"))
+    events = execution.events
+    events.write_snapshot(root, initial, "phase_started", "human", {"phase": "29"})
+    execution.approve_decision(
+        root, "architecture", "Use a deterministic append-only event ledger",
+        environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=_confirm_mode,
+    )
+    monkeypatch.setenv(approvals.KEY_ENV, KEY)
+    verified = events.verify_project(root)
+    assert verified["human_decision_signatures_verified"] == 1
+    assert verified["human_decision_signatures_unverified"] == 0
+    monkeypatch.delenv(approvals.KEY_ENV, raising=False)
+    unverified = events.verify_project(root)
+    assert unverified["human_decision_signatures_verified"] == 0
+    assert unverified["human_decision_signatures_unverified"] == 1
