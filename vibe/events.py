@@ -553,6 +553,6 @@ def verify_project(root: str | Path = ".") -> Dict[str, Any]:
         "last_hash": history[-1]["event_hash"] if history else GENESIS,
         "state_bytes": len(raw),
         "state_limit_bytes": MAX_STATE_BYTES,
-        "human_decision_signatures_verified": human_verified,
-        "human_decision_signatures_unverified": human_unverified,
+        "human_approval_signatures_verified": human_verified,
+        "human_approval_signatures_unverified": human_unverified,
     }
