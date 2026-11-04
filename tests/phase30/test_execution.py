@@ -54,6 +54,9 @@ def test_autonomous_mode_is_owner_signed_and_protected(tmp_path, monkeypatch):
     assert valid, reason
     ok, message = githooks.pre_commit_check(root)
     assert ok, message
+    verified = execution.events.verify_project(root)
+    assert verified["human_approval_signatures_verified"] == 1
+    assert verified["human_approval_signatures_unverified"] == 0
 
 
 def test_autonomous_mode_delegates_only_scoped_noncritical_decisions(tmp_path):
