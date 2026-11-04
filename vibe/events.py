@@ -363,7 +363,7 @@ def replay_snapshot(root: str | Path = ".") -> Dict[str, Any]:
 
 
 
-def rollback_snapshot(
+def _rollback_snapshot_unlocked(
     root: str | Path, reason: str, *, environ=None, stdin=None, confirm=input,
 ) -> Dict[str, Any]:
     """Restore the previous durable snapshot after an exact human-signed rollback."""
@@ -372,8 +372,8 @@ def rollback_snapshot(
     reason = str(reason).strip()
     if not reason:
         raise EventError("rollback reason is required")
-    verify_project(root)
-    history = read_events(root)
+    _verify_project_unlocked(root)
+    history = _read_events_unlocked(root)
     snapshots = [
         item for item in history
         if isinstance(item["details"].get("snapshot_after"), dict)
@@ -401,12 +401,12 @@ def rollback_snapshot(
         raise EventError("rollback digest confirmation did not match")
     target = "snapshot-rollback:" + current_snapshot["event_id"] + ":" + target_snapshot["event_id"]
     record = approvals.make_record(phase, target, digest, "rollback_approval", reviewer, key)
-    approval_event = append_event(
+    approval_event = _append_event_unlocked(
         root, "rollback_approved", phase, reviewer,
         {"approval_payload": payload, "approval_record": record, "approval_sha256": digest},
         source="state-rollback",
     )
-    restored = write_snapshot(
+    restored = _write_snapshot_unlocked(
         root,
         dict(target_snapshot["details"]["snapshot_after"]),
         "rollback_restored",
@@ -425,6 +425,12 @@ def rollback_snapshot(
         "event_sequence": restored["event_ledger"]["sequence"],
         "state_bytes": len((root / "docs/state.json").read_bytes()),
     }
+
+def rollback_snapshot(root: str | Path, reason: str, *, environ=None, stdin=None, confirm=input) -> Dict[str, Any]:
+    root = Path(root).resolve()
+    with _lock(root, SNAPSHOT_LOCK):
+        return _rollback_snapshot_unlocked(root, reason, environ=environ, stdin=stdin, confirm=confirm)
+
 
 
 def migrate_legacy_state(
