@@ -4,7 +4,7 @@ This repository is a new implementation, not a Git fork/copy of `teljothomas/vib
 
 ## Phase 28 adaptation
 
-The V2-specific Phase 28 defects (the `master` hard-code in `tests/phase26/test_merge_check.py` and missing pytest installation in the gate workflow) could not be patched here because the corresponding V2 merge-check and test modules are not part of a clean V3 codebase. Instead, Phase 28 establishes the equivalent new-repository guarantees: branch-default-independent Git fixtures, CI workflow dependency-order tests, a clean CLI/state baseline, and a full OS/Python matrix. The new remote matrix must pass before the phase is approved.
+The V2-specific Phase 28 defects (the `master` hard-code in `tests/phase26/test_merge_check.py` and missing pytest installation in the gate workflow) could not be patched here because the corresponding V2 merge-check and test modules are not part of a clean V3 codebase. Instead, Phase 28 establishes the equivalent new-repository guarantees: branch-default-independent Git fixtures, CI workflow dependency-order tests, a clean CLI/state baseline, and a full OS/Python matrix. The initial remote matrix passed 9/9 combinations on both `main` and `phase/28-v3-foundation` at commit `75db675563f21c5aa4505fd2809e3185d2693b08`; the strict phase gate also passed on both branches. Phase 28 is now gated and remains subject to human approval.
 
 ## Remaining phases
 
