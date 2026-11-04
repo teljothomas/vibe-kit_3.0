@@ -13,7 +13,7 @@ from . import approvals, events, governance, state
 
 DEFAULT_MODE = "supervised"
 ROUTINE = {"routine", "formatting", "tests", "bugfix", "implementation"}
-DELEGABLE = {"architecture", "dependencies", "scope", "test_strategy", "documentation", "phase_advance"}
+DELEGABLE = {"architecture", "dependencies", "test_strategy", "documentation", "phase_advance"}
 ALWAYS_HUMAN = {
     "credentials", "permissions", "security_boundary", "destructive",
     "external_communication", "spending", "production_release",
@@ -50,11 +50,45 @@ def _require_active_phase30(root: Path) -> Dict[str, Any]:
     return current
 
 
-def load_mode(root: str | Path = ".") -> str:
+def load_mode(root: str | Path = ".", *, environ=None) -> str:
+    """Read the configured mode and verify the owner HMAC whenever autonomy is enabled.
+
+    An absent config is supervised. An autonomous config without its external key,
+    staged-content match or valid approval is rejected rather than trusted.
+    """
+    root = Path(root).resolve()
     policy = governance.load_policy(root)
     mode = policy.get("execution_mode", DEFAULT_MODE)
     if mode not in {"supervised", "autonomous"}:
         raise ExecutionPolicyError("docs/governance.json execution_mode must be supervised or autonomous")
+    if mode == "autonomous":
+        try:
+            current = state.load(root / "docs/state.json")
+            key = approvals.approval_key(environ)
+            target = "docs/governance.json"
+            config_path = root / target
+            approval_path = root / approvals.approval_path_for(root, str(current["phase"]), target)
+            if not config_path.is_file() or not approval_path.is_file():
+                raise ExecutionPolicyError("autonomous mode is missing its owner-signed approval record")
+            dirty = subprocess.run(
+                ["git", "diff", "--quiet", "--", target],
+                cwd=str(root), capture_output=True,
+            )
+            if dirty.returncode != 0:
+                raise ExecutionPolicyError("autonomous mode config has uncommitted working-tree changes")
+            staged = approvals.staged_bytes(root, target)
+            signed = json.loads(approval_path.read_text(encoding="utf-8"))
+            digest = hashlib.sha256(staged).hexdigest()
+            valid, reason = approvals.verify_record(
+                signed, key, target, digest, str(current["phase"])
+            )
+            if not valid:
+                raise ExecutionPolicyError("autonomous mode approval is invalid: " + reason)
+            staged_policy = json.loads(staged.decode("utf-8"))
+            if staged_policy.get("execution_mode") != "autonomous":
+                raise ExecutionPolicyError("signed governance config does not enable autonomous mode")
+        except (state.StateError, approvals.ApprovalError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ExecutionPolicyError("autonomous mode cannot be verified; set VIBE_APPROVAL_KEY and restore its signed config") from exc
     return mode
 
 
@@ -184,22 +218,7 @@ def set_mode(
     current = _require_active_phase30(root)
     previous = load_mode(root)
     if previous == mode:
-        if previous == "autonomous":
-            key = approvals.approval_key(environ)
-            phase = str(current["phase"])
-            target = "docs/governance.json"
-            policy_path = root / target
-            approval_path = root / approvals.approval_path_for(root, phase, target)
-            if not policy_path.is_file() or not approval_path.is_file():
-                raise ExecutionPolicyError("autonomous mode is missing its owner approval record")
-            try:
-                record = json.loads(approval_path.read_text(encoding="utf-8"))
-                digest = hashlib.sha256(policy_path.read_bytes()).hexdigest()
-            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-                raise ExecutionPolicyError("autonomous mode approval is unreadable") from exc
-            valid, reason = approvals.verify_record(record, key, target, digest, phase)
-            if not valid:
-                raise ExecutionPolicyError("autonomous mode approval is invalid: " + reason)
+        # load_mode already verifies the signed autonomous setting against the Git index.
         return {"mode": mode, "changed": False}
     key = approvals.approval_key(environ)
     reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
