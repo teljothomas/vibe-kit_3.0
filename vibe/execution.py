@@ -1,4 +1,4 @@
-"""Owner-controlled execution governance mode and decision classification."""
+"""Owner-controlled execution mode and signed human/autonomous decision records."""
 from __future__ import annotations
 
 import hashlib
@@ -9,9 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from . import approvals, events, state
+from . import approvals, events, governance, state
 
-POLICY_PATH = Path("docs/execution-policy.json")
 DEFAULT_MODE = "supervised"
 ROUTINE = {"routine", "formatting", "tests", "bugfix", "implementation"}
 DELEGABLE = {"architecture", "dependencies", "scope", "test_strategy", "documentation", "phase_advance"}
@@ -23,7 +22,7 @@ ALWAYS_HUMAN = {
 
 
 class ExecutionPolicyError(ValueError):
-    """Invalid execution mode or attempted decision outside delegated authority."""
+    """Invalid mode, decision or delegated authority."""
 
 
 def _now() -> str:
@@ -34,39 +33,36 @@ def _canonical(value: Dict[str, Any]) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def load_policy(root: str | Path = ".") -> Dict[str, Any]:
-    path = Path(root) / POLICY_PATH
-    if not path.exists():
-        return {"schema": 1, "mode": DEFAULT_MODE, "updated_at": None, "updated_by": None}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ExecutionPolicyError("execution policy is unreadable or invalid JSON") from exc
-    if not isinstance(data, dict) or data.get("schema") != 1 or data.get("mode") not in {"supervised", "autonomous"}:
-        raise ExecutionPolicyError("execution policy has an unsupported schema or mode")
-    allowed = {"schema", "mode", "updated_at", "updated_by"}
-    if set(data) - allowed:
-        raise ExecutionPolicyError("execution policy contains unsupported keys")
-    return data
+def _safe_summary(value: str) -> str:
+    text = str(value).strip()
+    text = re.sub(r"(?i)(api[_-]?key|token|password|secret)\s*[:=]\s*[^ \t,;]+", r"\1=[REDACTED]", text)
+    return text[:500]
+
+
+def load_mode(root: str | Path = ".") -> str:
+    policy = governance.load_policy(root)
+    mode = policy.get("execution_mode", DEFAULT_MODE)
+    if mode not in {"supervised", "autonomous"}:
+        raise ExecutionPolicyError("docs/governance.json execution_mode must be supervised or autonomous")
+    return mode
 
 
 def evaluate_decision(
     root: str | Path, decision_class: str, *, gate_passed: bool = False,
     within_phase_scope: bool = True,
 ) -> Dict[str, Any]:
-    """Decide whether a coding agent may make a decision under the current owner mode.
+    """Return the actor/approval path permitted by the owner-selected mode.
 
-    Autonomous mode is delegated authority, not a human signature. Critical actions
-    and out-of-scope work remain human-controlled in both modes.
+    Autonomous delegation is not a human signature. High-risk actions remain human
+    controlled in both modes. Phase advancement requires a passing gate.
     """
-    policy = load_policy(root)
-    mode = policy["mode"]
+    mode = load_mode(root)
     category = str(decision_class).strip().casefold()
     if not category:
         raise ExecutionPolicyError("decision class is required")
     if category in ALWAYS_HUMAN:
         return {"decision": "human_required", "mode": mode, "actor": "human",
-                "reason": "this action is never delegated to an autonomous agent"}
+                "reason": "this action always requires explicit human authorization"}
     if not within_phase_scope:
         return {"decision": "human_required", "mode": mode, "actor": "human",
                 "reason": "decision is outside the approved phase scope"}
@@ -80,79 +76,118 @@ def evaluate_decision(
         return {"decision": "delegated", "mode": mode, "actor": "agent-autonomous",
                 "reason": "owner delegated this decision class to autonomous execution"}
     return {"decision": "human_required", "mode": mode, "actor": "human",
-            "reason": "important decisions require human approval in supervised mode or are not in the delegated allowlist"}
+            "reason": "important decisions require approval in supervised mode or are outside the delegated allowlist"}
+
+
+def _append_and_stage(root: Path, event_type: str, phase: str, actor: str,
+                      details: Dict[str, Any]) -> Dict[str, Any]:
+    event = events.append_event(root, event_type, phase, actor, details, source="execution-governance")
+    proc = subprocess.run(["git", "add", "--", str(events.LEDGER)], cwd=str(root),
+                          capture_output=True, text=True)
+    if proc.returncode:
+        raise ExecutionPolicyError("decision event was appended but could not be staged: " + proc.stderr.strip())
+    return event
 
 
 def record_decision(
     root: str | Path, decision_class: str, summary: str, *, gate_passed: bool = False,
     within_phase_scope: bool = True,
 ) -> Dict[str, Any]:
-    """Evaluate and append a privacy-conscious decision record to the event ledger."""
+    """Record a routine or delegated decision; supervised important decisions are blocked."""
     root = Path(root).resolve()
     result = evaluate_decision(root, decision_class, gate_passed=gate_passed,
                                within_phase_scope=within_phase_scope)
     current = state.load(root / "docs/state.json")
-    safe_summary = re.sub(r"(?i)(api[_-]?key|token|password|secret)\s*[:=]\s*[^ ]+", r"\1=[REDACTED]", str(summary))[:500]
-    event = events.append_event(
-        root,
-        "decision_" + result["decision"],
-        str(current["phase"]),
-        result["actor"],
-        {"class": decision_class, "summary": safe_summary, "mode": result["mode"],
+    if result["decision"] == "human_required":
+        event = _append_and_stage(
+            root, "decision_waiting_for_human", str(current["phase"]), "agent",
+            {"class": decision_class, "summary": _safe_summary(summary), "mode": result["mode"],
+             "reason": result["reason"], "gate_passed": bool(gate_passed),
+             "within_phase_scope": bool(within_phase_scope)},
+        )
+        return dict(result, event_id=event["event_id"], event_seq=event["seq"])
+    event = _append_and_stage(
+        root, "decision_" + result["decision"], str(current["phase"]), result["actor"],
+        {"class": decision_class, "summary": _safe_summary(summary), "mode": result["mode"],
          "reason": result["reason"], "gate_passed": bool(gate_passed),
          "within_phase_scope": bool(within_phase_scope)},
-        source="execution-governance",
     )
-    staged = subprocess.run(["git", "add", "--", str(events.LEDGER)], cwd=str(root),
-                            capture_output=True, text=True)
-    if staged.returncode:
-        raise ExecutionPolicyError("decision recorded but event ledger could not be staged")
     return dict(result, event_id=event["event_id"], event_seq=event["seq"])
+
+
+def approve_decision(
+    root: str | Path, decision_class: str, summary: str, *, environ=None,
+    stdin=None, confirm=input,
+) -> Dict[str, Any]:
+    """Create an HMAC-signed human authorization for one exact decision statement."""
+    root = Path(root).resolve()
+    reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
+    key = approvals.approval_key(environ)
+    current = state.load(root / "docs/state.json")
+    payload = {
+        "schema": 1, "phase": str(current["phase"]), "decision_class": str(decision_class),
+        "summary": _safe_summary(summary), "mode": load_mode(root), "reviewer": reviewer,
+        "approved_at": _now(),
+    }
+    digest = hashlib.sha256(_canonical(payload)).hexdigest()
+    expected = "APPROVE DECISION " + digest[:12]
+    if confirm("To authorize this exact decision, type " + expected + ": ").strip() != expected:
+        raise ExecutionPolicyError("decision digest confirmation did not match")
+    target = "decision:" + str(current["phase"]) + ":" + digest[:12]
+    record = approvals.make_record(str(current["phase"]), target, digest, "decision_approval", reviewer, key)
+    event = _append_and_stage(
+        root, "decision_human_approved", str(current["phase"]), reviewer,
+        {"decision": payload, "decision_sha256": digest, "approval_record": record},
+    )
+    return {"decision": "human_approved", "reviewer": reviewer, "event_id": event["event_id"],
+            "event_seq": event["seq"], "decision_sha256": digest}
 
 
 def set_mode(
     root: str | Path, mode: str, *, environ=None, stdin=None, confirm=input,
 ) -> Dict[str, Any]:
-    """Change mode only through an interactive, HMAC-signed owner action."""
+    """Change mode only through an interactive owner action and signed protected config."""
     root = Path(root).resolve()
     mode = str(mode).strip().casefold()
     if mode not in {"supervised", "autonomous"}:
         raise ExecutionPolicyError("mode must be supervised or autonomous")
-    previous = load_policy(root)
-    if previous["mode"] == mode:
+    previous = load_mode(root)
+    if previous == mode:
         return {"mode": mode, "changed": False}
     reviewer = approvals.require_human(stdin=stdin, environ=environ, confirm=confirm)
     key = approvals.approval_key(environ)
-    document = {"schema": 1, "mode": mode, "updated_at": _now(), "updated_by": reviewer}
-    digest = hashlib.sha256(_canonical(document)).hexdigest()
-    expected = "SET MODE " + mode + " " + digest[:12]
-    typed = confirm("To change execution mode, type " + expected + ": ").strip()
-    if typed != expected:
-        raise ExecutionPolicyError("execution-mode digest confirmation did not match")
-    target = POLICY_PATH.as_posix()
-    approval_rel = approvals.approval_path_for(root, str(state.load(root / "docs/state.json")["phase"]), target)
-    approvals_path = root / approval_rel
-    policy_path = root / POLICY_PATH
+    policy = governance.load_policy(root)
+    document = dict(policy)
+    document["execution_mode"] = mode
+    document["mode_updated_at"] = _now()
+    document["mode_updated_by"] = reviewer
+    encoded = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    policy_path = root / "docs" / "governance.json"
     policy_path.parent.mkdir(parents=True, exist_ok=True)
-    policy_path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    record = approvals.make_record(
-        str(state.load(root / "docs/state.json")["phase"]), target, digest,
-        "protected_path", reviewer, key,
-    )
-    approvals_path.parent.mkdir(parents=True, exist_ok=True)
-    approvals_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    current = state.load(root / "docs/state.json")
+    policy_path.write_bytes(encoded)
+    target = "docs/governance.json"
+    staged = subprocess.run(["git", "add", "--", target], cwd=str(root), capture_output=True, text=True)
+    if staged.returncode:
+        raise ExecutionPolicyError("mode setting was written but could not be staged")
+    digest = hashlib.sha256(approvals.staged_bytes(root, target)).hexdigest()
+    expected = "SET MODE " + mode + " " + digest[:12]
+    if confirm("To change execution mode, type " + expected + ": ").strip() != expected:
+        raise ExecutionPolicyError("execution-mode digest confirmation did not match")
+    phase = str(state.load(root / "docs/state.json")["phase"])
+    record = approvals.make_record(phase, target, digest, "protected_path", reviewer, key)
+    approval_rel = approvals.approval_path_for(root, phase, target)
+    approval_path = root / approval_rel
+    approval_path.parent.mkdir(parents=True, exist_ok=True)
+    approval_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     event = events.append_event(
-        root, "governance_mode_changed", str(current["phase"]), reviewer,
-        {"previous_mode": previous["mode"], "new_mode": mode,
-         "policy_sha256": digest, "approval_record": approval_rel},
+        root, "governance_mode_changed", phase, reviewer,
+        {"previous_mode": previous, "new_mode": mode, "config_sha256": digest,
+         "approval_record": approval_rel},
         source="execution-governance",
     )
-    proc = subprocess.run(
-        ["git", "add", "--", target, approval_rel, str(events.LEDGER)],
-        cwd=str(root), capture_output=True, text=True,
-    )
-    if proc.returncode:
-        raise ExecutionPolicyError("mode updated and signed, but staging failed: " + proc.stderr.strip())
+    staged = subprocess.run(["git", "add", "--", approval_rel, str(events.LEDGER)],
+                            cwd=str(root), capture_output=True, text=True)
+    if staged.returncode:
+        raise ExecutionPolicyError("mode and signature were created but could not be staged")
     return {"mode": mode, "changed": True, "reviewer": reviewer,
             "approval": approval_rel, "event_id": event["event_id"]}
