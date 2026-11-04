@@ -17,6 +17,8 @@ def _events(args):
     group.add_argument("--dry-run", action="store_true", help="preview without writing (default)")
     group.add_argument("--apply", action="store_true", help="append imported events and update snapshot")
     sub.add_parser("replay", help="recover the compact snapshot from the last durable snapshot event")
+    rollback = sub.add_parser("rollback", help="human-approve restore of the previous snapshot without deleting history")
+    rollback.add_argument("--reason", required=True, help="why the previous durable snapshot is being restored")
     parsed = parser.parse_args(args)
     root = Path.cwd()
     if parsed.action == "verify":
@@ -38,6 +40,12 @@ def _events(args):
     if parsed.action == "replay":
         result = events.replay_snapshot(root)
         print("REPLAY-OK phase=" + str(result.get("phase")) + " status=" + str(result.get("status")))
+        return 0
+    if parsed.action == "rollback":
+        result = events.rollback_snapshot(root, parsed.reason)
+        print("ROLLBACK-OK phase=" + result["phase"] + " status=" + result["status"]
+              + " event_sequence=" + str(result["event_sequence"])
+              + " approval_event=" + result["approval_event_id"])
         return 0
     return 2
 
