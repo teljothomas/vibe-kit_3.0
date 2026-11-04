@@ -62,9 +62,13 @@ def start_phase(root: str | Path, phase: str, *, environ=None, stdin=None, confi
     plan_bytes = plan.read_bytes()
     try:
         plan_text = plan_bytes.decode("utf-8")
-        schema_bytes = (root / schema_rel).read_bytes()
-    except (UnicodeError, OSError) as exc:
+        schema_document = json.loads((root / schema_rel).read_text(encoding="utf-8"))
+    except (UnicodeError, OSError, json.JSONDecodeError) as exc:
         raise PhaseStartError("phase plan or event schema is missing or unreadable") from exc
+    if not isinstance(schema_document, dict):
+        raise PhaseStartError("event schema must be a JSON object")
+    schema_document["$comment"] = "Owner-approved additive Phase 30 event contract; signed at phase activation."
+    schema_bytes = (json.dumps(schema_document, indent=2, sort_keys=True) + "\n").encode("utf-8")
     marker = "**Status:** proposed"
     if plan_text.count(marker) != 1:
         raise PhaseStartError("phase plan must contain exactly one proposed status marker")
@@ -105,10 +109,13 @@ def start_phase(root: str | Path, phase: str, *, environ=None, stdin=None, confi
     if str(current["phase"]) != previous or current["status"] != "approved":
         raise PhaseStartError("state changed while preparing phase activation")
 
-    # Create the active contract and an exact archive copy.
+    # Create the active contract and an exact archive copy. Include a signed
+    # approval marker in the new additive event schema so its first protected
+    # introduction and approval are committed in the same transaction.
     archive = root / archive_rel
     _write(target, active_bytes)
     _write(archive, active_bytes)
+    _write(root / schema_rel, schema_bytes)
 
     # The supervised default is installed in the existing protected governance file.
     # Custom paths keep Phase 30's implementation, tests and gate from agent edits.
