@@ -5,7 +5,7 @@ from vibe.state import StateError, load
 
 def test_current_state_is_valid():
     state = load()
-    assert state["phase"] == "28"
+    assert state["phase"] == "29"
 
 
 def test_invalid_state_fails_closed(tmp_path):

@@ -1,24 +1,60 @@
 #!/usr/bin/env python3
-"""Small, deterministic phase gate. Pytest is a development/CI dependency."""
+"""Small deterministic phase gate; tests and checks are development-only."""
+from __future__ import annotations
+
 import argparse
 import subprocess
 import sys
+from pathlib import Path
 
-p = argparse.ArgumentParser()
-p.add_argument("--phase", required=True)
-args = p.parse_args()
-if args.phase != "28":
-    print("G-FAIL phase-" + args.phase + " — no gate registered for this phase")
-    raise SystemExit(1)
-try:
-    proc = subprocess.run([sys.executable, "-m", "pytest", "-q"], text=True, capture_output=True)
-except OSError as exc:
-    print("G-FAIL phase-28 — could not start pytest: " + str(exc))
-    raise SystemExit(1)
-summary = next((line.strip() for line in reversed(proc.stdout.splitlines()) if " passed" in line or " failed" in line), "pytest produced no summary")
-if proc.returncode == 0:
-    print("G-PASS phase-28 — " + summary)
-else:
-    failure = next((line.strip() for line in proc.stdout.splitlines() if line.startswith("FAILED ")), summary)
-    print("G-FAIL phase-28 — " + failure[:300])
-raise SystemExit(proc.returncode)
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def run(command):
+    proc = subprocess.run(command, cwd=str(ROOT), text=True, capture_output=True)
+    if proc.returncode:
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        detail = next((line for line in reversed(lines) if line.startswith("FAILED ") or line.startswith("ERROR ")), None)
+        if detail is None:
+            detail = lines[-1] if lines else "no output"
+        return False, detail[:240]
+    return True, ""
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--phase", required=True)
+    args = parser.parse_args()
+    if args.phase not in {"28", "29"}:
+        print("G-FAIL phase-" + args.phase + " — no gate registered")
+        return 1
+
+    sys.path.insert(0, str(ROOT))
+    from vibe import governance
+    ok, message = governance.check_governance(ROOT)
+    if not ok:
+        print("G-FAIL phase-" + args.phase + " governance — " + str(message))
+        return 1
+
+    if args.phase == "29":
+        checks = [
+            [sys.executable, "-m", "pytest", "tests/phase29", "-q"],
+            [sys.executable, "-m", "pytest", "-q"],
+            [sys.executable, "-m", "vibe", "doctor", "--strict"],
+            [sys.executable, "-m", "vibe", "verify"],
+        ]
+    else:
+        checks = [[sys.executable, "-m", "pytest", "-q"]]
+
+    for command in checks:
+        ok, detail = run(command)
+        if not ok:
+            print("G-FAIL phase-" + args.phase + " — " + detail)
+            return 1
+    print("G-PASS phase-" + args.phase)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,8 @@
+{
+  "name": "vibe-kit",
+  "version": "3.0.0-alpha",
+  "description": "Local-first Vibe Kit governance guard for protected phase contracts and policy files.",
+  "author": {
+    "name": "Vibe Kit"
+  }
+}

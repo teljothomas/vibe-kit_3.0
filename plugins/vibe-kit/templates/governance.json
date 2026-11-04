@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "protected_paths": [
+    "docs/state.json",
+    "docs/invariants.md",
+    "docs/decisions.md",
+    "docs/governance.json",
+    "docs/contracts/**",
+    "docs/approvals/**",
+    ".vibe/approvals/**",
+    "AGENTS.md",
+    ".github/workflows/**",
+    "plugins/vibe-kit/**",
+    "scripts/gate",
+    "tests/phase29/**",
+    "tests/test_ci_contract.py",
+    "vibe/approvals.py",
+    "vibe/cli.py",
+    "vibe/doctor.py",
+    "vibe/githooks.py",
+    "vibe/governance.py",
+    "vibe/verify.py"
+  ],
+  "phase_source_pattern": "docs/phases/phase-[0-9][0-9].md",
+  "generated_phase_suffixes": [
+    ".context.md",
+    ".repair.md"
+  ],
+  "proposal_directory": "docs/proposals",
+  "amendment_archive_directory": "docs/amendments",
+  "approval_directory": "docs/approvals"
+}
