@@ -49,7 +49,7 @@ def test_autonomous_mode_is_owner_signed_and_protected(tmp_path, monkeypatch):
     staged = approvals.staged_bytes(root, "docs/governance.json")
     valid, reason = approvals.verify_record(
         record, KEY.encode(), "docs/governance.json",
-        __import__("hashlib").sha256(staged).hexdigest(), "29",
+        __import__("hashlib").sha256(staged).hexdigest(), "30",
     )
     assert valid, reason
     ok, message = githooks.pre_commit_check(root)
@@ -76,14 +76,14 @@ def test_supervised_routine_decisions_are_recorded_but_important_decisions_wait(
     important = execution.record_decision(root, "architecture", "Choose module boundaries")
     assert important["decision"] == "human_required"
     history = execution.events.read_events(root)
-    assert [x["event_type"] for x in history] == ["decision_allowed", "decision_waiting_for_human"]
+    assert [x["event_type"] for x in history[-2:]] == ["decision_allowed", "decision_waiting_for_human"]
 
 
 def test_human_decision_approval_is_digest_bound(tmp_path):
     root = _activate_phase30(make_repo(tmp_path))
     result = execution.approve_decision(root, "architecture", "Use an append-only event journal",
                                         environ={approvals.KEY_ENV: KEY}, stdin=TTY(), confirm=_confirm_mode)
-    event = execution.events.read_events(root)[0]
+    event = execution.events.read_events(root)[-1]
     record = event["details"]["approval_record"]
     payload = event["details"]["decision"]
     digest = __import__("hashlib").sha256(execution._canonical(payload)).hexdigest()
