@@ -29,7 +29,7 @@ The reviewer must be a separate Claude session or subagent started with fresh co
 3. All ten required checks (`gate` plus the nine OS/Python matrix jobs) succeeded on the head SHA; no other check is failing or pending.
 4. GitHub reports `mergeable == MERGEABLE`.
 5. No unresolved review threads.
-6. No file in the PR diff is a protected path under the policy loaded from current `origin/main`.
+6. No file in the PR diff, including the old name of a renamed file, is a protected path under the policy loaded from current `origin/main`. The diff is read through the paginated API and the controller fails closed if its count differs from GitHub's `changedFiles`.
 7. A verdict for the exact head SHA exists, is `approve`, reports zero Critical and zero High findings, names distinct reviewer and implementer sessions, carries `G-PASS phase-NN` for the PR's phase and post-dates the head commit.
 8. The controller itself runs from a clean checkout of current `origin/main`, so a PR cannot change the rules that judge it.
 
@@ -49,7 +49,7 @@ On success it runs `gh pr merge --squash --match-head-commit <sha>`, confirms `M
 
 ## Residual risks
 
-- Reviewer independence is procedural, not cryptographic. A single GitHub account authors the PR, the verdict and the merge, and verdict fields are self-asserted. The controller verifies binding, freshness, CI and shape; it cannot prove a separate mind produced the verdict. Hardening: a second GitHub identity as reviewer plus branch protection that requires its approval, configured by the owner.
+- Reviewer independence is procedural, not cryptographic. While `REVIEWER_LOGINS` in the controller is empty, one GitHub account authors the PR, the verdict and the merge, and verdict fields are self-asserted; the controller prints a warning and cannot prove a separate mind produced the verdict. Edited verdict comments are ignored. Hardening, an owner credential operation: create a reviewer-only GitHub identity, list its login in `REVIEWER_LOGINS` through a signed amendment (the controller then rejects verdicts from any other author or from the PR author) and add branch protection that requires its approval.
 - Approval-record HMACs are not verifiable in CI without placing `VIBE_APPROVAL_KEY` where PR code could reach it, so protected-path PRs are routed to the owner rather than trusted on digest alone. An opt-in design using a `pull_request_target` workflow that verifies records from base-branch code is possible; it needs an owner credential operation and is not part of this amendment.
 - `main` currently has no branch protection. The controller is a guardrail like the hooks, not a sandbox (Security boundary in `docs/invariants.md`).
 - The required-check list is fixed to the Phase 28 CI matrix; changing the matrix requires changing the controller through a signed amendment.

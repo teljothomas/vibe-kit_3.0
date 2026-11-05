@@ -28,6 +28,10 @@ REQUIRED_CHECKS = frozenset(
 )
 OK_CONCLUSIONS = {"SUCCESS"}
 NEUTRAL_CONCLUSIONS = {"SKIPPED", "NEUTRAL"}
+# Dedicated reviewer-only GitHub logins. Empty means review independence is procedural
+# only (one account); populate through a signed amendment once a second identity exists.
+REVIEWER_LOGINS = ()
+MAX_COMMENTS = 100
 
 
 class ControllerError(RuntimeError):
@@ -39,22 +43,26 @@ def _timestamp(value):
 
 
 def parse_verdicts(comments):
-    """Yield (created_at, verdict dict) for every well-formed verdict block, oldest first."""
+    """Return (created_at, verdict dict, author login) for every well-formed, unedited verdict, oldest first."""
     found = []
     for comment in comments:
+        if comment.get("lastEditedAt"):
+            continue  # an edited comment may no longer be what the reviewer approved
         for block in VERDICT_RE.findall(comment.get("body") or ""):
             try:
                 verdict = json.loads(block)
             except ValueError:
                 continue
             if isinstance(verdict, dict) and verdict.get("schema") == 1:
-                found.append((comment.get("createdAt") or "", verdict))
+                found.append((comment.get("createdAt") or "", verdict, (comment.get("author") or {}).get("login") or ""))
     return sorted(found, key=lambda item: item[0])
 
 
-def evaluate(pr, comments, threads, head_committed_at, is_protected, expected_phase=None):
+def evaluate(pr, comments, threads, head_committed_at, is_protected, expected_phase=None,
+             reviewer_logins=None):
     """Return a list of human-readable failures; empty means every precondition holds."""
     failures = []
+    reviewer_logins = REVIEWER_LOGINS if reviewer_logins is None else reviewer_logins
     head = pr.get("headRefOid") or ""
     branch = pr.get("headRefName") or ""
     if pr.get("state") != "OPEN" or pr.get("isDraft"):
@@ -88,15 +96,21 @@ def evaluate(pr, comments, threads, head_committed_at, is_protected, expected_ph
     if unresolved:
         failures.append(str(unresolved) + " unresolved review thread(s)")
 
-    touched = sorted(item["path"] for item in pr.get("files") or [] if is_protected(item["path"]))
+    files = pr.get("files") or []
+    if pr.get("changedFiles") != len(files):
+        failures.append("changed-file list is incomplete (%s of %s); refusing to judge it" % (len(files), pr.get("changedFiles")))
+    paths = {name for item in files for name in (item.get("path"), item.get("previous")) if name}
+    touched = sorted(name for name in paths if is_protected(name))
     if touched:
         failures.append("protected paths changed; the human owner must merge: " + ", ".join(touched[:5]))
 
-    verdicts = [(at, v) for at, v in parse_verdicts(comments) if v.get("head_sha") == head]
+    verdicts = [(at, v, who) for at, v, who in parse_verdicts(comments) if v.get("head_sha") == head]
     if not verdicts:
         failures.append("no independent review verdict is bound to head " + head[:12])
     else:
-        created, verdict = verdicts[-1]
+        created, verdict, author = verdicts[-1]
+        if reviewer_logins and (author not in reviewer_logins or author == (pr.get("author") or {}).get("login")):
+            failures.append("verdict author " + (author or "unknown") + " is not an allowlisted reviewer distinct from the PR author")
         if verdict.get("verdict") != "approve":
             failures.append("latest verdict for head is " + str(verdict.get("verdict")))
         if verdict.get("critical") != 0 or verdict.get("high") != 0:
@@ -132,6 +146,25 @@ def _repo():
     return _run(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
 
 
+def _changed_files(repo, number):
+    """All changed files through the paginated API; `gh pr view` silently stops at 100."""
+    raw = _run(["gh", "api", "--paginate", "repos/%s/pulls/%d/files?per_page=100" % (repo, number),
+                "--jq", '.[] | [.filename, (.previous_filename // "")] | @tsv'])
+    rows = [line.split("\t") for line in raw.splitlines() if line]
+    return [{"path": row[0], "previous": row[1] if len(row) > 1 else ""} for row in rows]
+
+
+def _comments(repo, number):
+    owner, name = repo.split("/")
+    query = ("query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p)"
+             "{comments(last:%d){totalCount nodes{body createdAt lastEditedAt author{login}}}}}}" % MAX_COMMENTS)
+    data = _gh_json("api", "graphql", "-f", "query=" + query, "-F", "o=" + owner, "-F", "n=" + name, "-F", "p=" + str(number))
+    block = data["data"]["repository"]["pullRequest"]["comments"]
+    if block["totalCount"] > MAX_COMMENTS:
+        raise ControllerError("more than %d PR comments; cannot prove the latest verdict is visible" % MAX_COMMENTS)
+    return block["nodes"]
+
+
 def _threads(repo, number):
     owner, name = repo.split("/")
     query = ("query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p)"
@@ -161,10 +194,11 @@ def _load_protection():
 def _inspect(number, expected_phase):
     repo = _repo()
     pr = _gh_json("pr", "view", str(number), "--json",
-                  "state,isDraft,baseRefName,headRefName,headRefOid,mergeable,statusCheckRollup,files,comments,commits")
+                  "state,isDraft,author,baseRefName,headRefName,headRefOid,mergeable,statusCheckRollup,changedFiles,commits")
+    pr["files"] = _changed_files(repo, number)
     commits = pr.get("commits") or []
     head_date = commits[-1]["committedDate"] if commits else ""
-    failures = evaluate(pr, pr.get("comments") or [], _threads(repo, number), head_date,
+    failures = evaluate(pr, _comments(repo, number), _threads(repo, number), head_date,
                         _load_protection(), expected_phase)
     return pr, failures
 
@@ -176,6 +210,8 @@ def cmd_check(args):
         print("MERGE-BLOCKED " + failure)
     if failures:
         return 1
+    if not REVIEWER_LOGINS:
+        print("MERGE-WARNING review independence is procedural only; no reviewer identity is enforced")
     print("MERGE-READY pr=%d head=%s" % (args.pr, pr["headRefOid"]))
     return 0
 

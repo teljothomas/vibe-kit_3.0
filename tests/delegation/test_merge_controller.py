@@ -28,7 +28,8 @@ def verdict(**overrides):
 def make_pr(**overrides):
     pr = {
         "state": "OPEN", "isDraft": False, "baseRefName": "main", "headRefName": "phase/31-docs-policy-cache",
-        "headRefOid": HEAD, "mergeable": "MERGEABLE", "files": [{"path": "vibe/docs_gen.py"}],
+        "headRefOid": HEAD, "mergeable": "MERGEABLE", "files": [{"path": "vibe/docs_gen.py", "previous": ""}],
+        "changedFiles": 1, "author": {"login": "owner-account"},
         "statusCheckRollup": [
             {"__typename": "CheckRun", "name": name, "status": "COMPLETED", "conclusion": "SUCCESS"}
             for name in sorted(mc.REQUIRED_CHECKS)
@@ -74,9 +75,37 @@ def test_unresolved_review_thread_blocks():
 
 
 def test_protected_path_change_routes_to_owner():
-    pr = make_pr(files=[{"path": "vibe/docs_gen.py"}, {"path": "scripts/gate"}])
+    pr = make_pr(files=[{"path": "vibe/docs_gen.py"}, {"path": "scripts/gate"}], changedFiles=2)
     failures = run(pr=pr, protected=lambda p: p == "scripts/gate")
     assert any("human owner must merge" in f and "scripts/gate" in f for f in failures)
+
+
+def test_rename_out_of_a_protected_path_is_detected():
+    pr = make_pr(files=[{"path": "vibe/moved.py", "previous": "scripts/gate"}])
+    assert any("scripts/gate" in f for f in run(pr=pr, protected=lambda p: p == "scripts/gate"))
+
+
+def test_truncated_file_list_fails_closed():
+    assert any("changed-file list is incomplete" in f for f in run(pr=make_pr(changedFiles=250)))
+
+
+def test_edited_verdict_comment_is_ignored():
+    edited = verdict()
+    edited["lastEditedAt"] = "2026-11-05T10:45:00Z"
+    assert any("no independent review verdict" in f for f in run(comments=[edited]))
+
+
+def test_allowlisted_reviewer_identity_is_enforced_when_configured():
+    def with_author(login):
+        item = verdict()
+        item["author"] = {"login": login}
+        return item
+    kwargs = dict(reviewer_logins=("review-bot",))
+    ok = mc.evaluate(make_pr(), [with_author("review-bot")], [], HEAD_TIME, lambda p: False, "31", **kwargs)
+    assert ok == []
+    for who in ("owner-account", "someone-else"):
+        bad = mc.evaluate(make_pr(), [with_author(who)], [], HEAD_TIME, lambda p: False, "31", **kwargs)
+        assert any("allowlisted reviewer" in f for f in bad)
 
 
 def test_missing_verdict_blocks():
