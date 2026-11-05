@@ -86,7 +86,7 @@ def start_phase(root: str | Path, phase: str, *, environ=None, stdin=None, confi
     prior_path = root / "docs/approvals" / ("phase-" + previous + ".json")
     try:
         prior_record = json.loads(prior_path.read_text(encoding="utf-8"))
-        prior_digest = hashlib.sha256((root / prior_target).read_bytes()).hexdigest()
+        prior_digest = hashlib.sha256(approvals.committed_bytes(root, prior_target)).hexdigest()
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise PhaseStartError("previous phase approval record or contract is missing") from exc
     valid, reason = approvals.verify_record(prior_record, key, prior_target, prior_digest, previous)
