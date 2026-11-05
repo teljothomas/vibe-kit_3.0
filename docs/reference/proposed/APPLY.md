@@ -16,5 +16,3 @@ git push origin governance/delegated-delivery
 ```
 
 `approve-staged` signs the three changed protected files (AGENTS.md, CLAUDE.md, docs/governance.json) and shows a digest to type; review the staged diff first (`git diff --cached`). The controller, its tests and the procedure are already on the branch, so they are not re-signed: they become protected when `docs/governance.json` merges, and your review of this PR is what accepts their current content. Then merge the PR yourself; this amendment is not self-delegating. Verify afterwards with `python -m vibe governance check`, `python -m vibe doctor --strict` and `python -m pytest tests/delegation -q`.
-
-If `git rm -r` of the proposed directory is rejected by the pre-commit guard, run `git rm` after `approve-staged` and amend the commit.

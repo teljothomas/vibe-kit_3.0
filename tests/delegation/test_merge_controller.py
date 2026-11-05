@@ -90,10 +90,15 @@ def test_truncated_file_list_fails_closed():
     assert any("changed-file list is incomplete" in f for f in run(pr=make_pr(changedFiles=250)))
 
 
-def test_edited_verdict_comment_is_ignored():
+def test_edited_verdict_comment_blocks_and_cannot_hide_a_rejection():
     edited = verdict()
     edited["lastEditedAt"] = "2026-11-05T10:45:00Z"
-    assert any("no independent review verdict" in f for f in run(comments=[edited]))
+    assert any("was edited" in f for f in run(comments=[edited]))
+    rejection = verdict(verdict="changes_requested")
+    rejection["createdAt"] = "2026-11-05T11:00:00Z"
+    rejection["lastEditedAt"] = "2026-11-05T11:05:00Z"
+    failures = run(comments=[verdict(), rejection])
+    assert any("was edited" in f for f in failures)
 
 
 def test_allowlisted_reviewer_identity_is_enforced_when_configured():
@@ -143,9 +148,9 @@ def test_verdict_older_than_head_commit_blocks():
     assert any("predates the head commit" in f for f in run(comments=[stale]))
 
 
-def test_malformed_verdict_json_is_ignored():
+def test_malformed_verdict_block_blocks_even_beside_a_valid_approval():
     comment = {"createdAt": REVIEW_TIME, "body": "```vibe-review-verdict\n{not json\n```"}
-    assert any("no independent review verdict" in f for f in run(comments=[comment]))
+    assert any("not valid JSON" in f for f in run(comments=[verdict(), comment]))
 
 
 def test_required_checks_cover_the_ci_matrix():

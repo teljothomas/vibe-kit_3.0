@@ -43,19 +43,27 @@ def _timestamp(value):
 
 
 def parse_verdicts(comments):
-    """Return (created_at, verdict dict, author login) for every well-formed, unedited verdict, oldest first."""
-    found = []
+    """Return (verdicts, problems). Verdicts are (created_at, dict, author login), oldest first.
+
+    An edited or unparseable verdict block is a problem, never silently skipped: dropping a
+    rejection would let an older approval win.
+    """
+    found, problems = [], []
     for comment in comments:
-        if comment.get("lastEditedAt"):
-            continue  # an edited comment may no longer be what the reviewer approved
         for block in VERDICT_RE.findall(comment.get("body") or ""):
+            if comment.get("lastEditedAt"):
+                problems.append("a verdict comment was edited after posting; repost it as a new comment")
+                continue
             try:
                 verdict = json.loads(block)
             except ValueError:
+                problems.append("a verdict block is not valid JSON")
                 continue
             if isinstance(verdict, dict) and verdict.get("schema") == 1:
                 found.append((comment.get("createdAt") or "", verdict, (comment.get("author") or {}).get("login") or ""))
-    return sorted(found, key=lambda item: item[0])
+            else:
+                problems.append("a verdict block has an unsupported schema")
+    return sorted(found, key=lambda item: item[0]), sorted(set(problems))
 
 
 def evaluate(pr, comments, threads, head_committed_at, is_protected, expected_phase=None,
@@ -104,7 +112,9 @@ def evaluate(pr, comments, threads, head_committed_at, is_protected, expected_ph
     if touched:
         failures.append("protected paths changed; the human owner must merge: " + ", ".join(touched[:5]))
 
-    verdicts = [(at, v, who) for at, v, who in parse_verdicts(comments) if v.get("head_sha") == head]
+    parsed, problems = parse_verdicts(comments)
+    failures.extend(problems)
+    verdicts = [(at, v, who) for at, v, who in parsed if v.get("head_sha") == head]
     if not verdicts:
         failures.append("no independent review verdict is bound to head " + head[:12])
     else:
@@ -201,6 +211,8 @@ def _inspect(number, expected_phase):
     head_date = commits[-1]["committedDate"] if commits else ""
     failures = evaluate(pr, _comments(repo, number), _threads(repo, number), head_date,
                         _load_protection(), expected_phase)
+    if _gh_json("pr", "view", str(number), "--json", "headRefOid")["headRefOid"] != pr["headRefOid"]:
+        failures.append("head commit changed while evidence was being gathered; rerun")
     return pr, failures
 
 
