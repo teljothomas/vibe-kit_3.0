@@ -1,0 +1,376 @@
+{
+  "phase": "27",
+  "status": "approved",
+  "log": [
+    {
+      "phase": "09",
+      "gate": "PASS phase-09 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/doctor.py"
+      ],
+      "commit": "14e6efd",
+      "evidence": "docs/evidence/phase-09.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-27T14:07:04Z",
+      "signature": null
+    },
+    {
+      "phase": "10",
+      "gate": "PASS phase-10 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py"
+      ],
+      "commit": "2b744c6",
+      "evidence": "docs/evidence/phase-10.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-27T14:13:38Z",
+      "signature": null
+    },
+    {
+      "phase": "11",
+      "gate": "PASS phase-11 1/1",
+      "deviations": [
+        "plugins/vibe-kit/skills/next/SKILL.md",
+        "plugins/vibe-kit/skills/vibe-init/SKILL.md",
+        "scripts/gate",
+        "vibe/cli.py"
+      ],
+      "commit": "060f12e",
+      "evidence": "docs/evidence/phase-11.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-27T14:26:02Z",
+      "signature": null
+    },
+    {
+      "phase": "12",
+      "gate": "PASS phase-12 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "tests/phase03/test_cli.py",
+        "vibe/cli.py"
+      ],
+      "commit": "a648c20",
+      "evidence": "docs/evidence/phase-12.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T01:31:29Z",
+      "signature": null
+    },
+    {
+      "phase": "13",
+      "gate": "PASS phase-13 2/2",
+      "deviations": [
+        "INSTALL.md",
+        "README.md",
+        "docs/state.json",
+        "plugins/vibe-kit/.claude-plugin/plugin.json",
+        "scripts/gate",
+        "vibe-kit-usage-plan.md",
+        "vibe/cli.py",
+        "vibe/doctor.py",
+        "vibe/policy.py"
+      ],
+      "commit": "65cb55d",
+      "evidence": "docs/evidence/phase-13.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T02:12:51Z",
+      "signature": null
+    },
+    {
+      "phase": "14",
+      "gate": "PASS phase-14 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/evidence.py",
+        "vibe/gitutil.py"
+      ],
+      "commit": "20d1dc0",
+      "evidence": "docs/evidence/phase-14.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T03:16:32Z",
+      "signature": null
+    },
+    {
+      "phase": "15",
+      "gate": "PASS phase-15 1/1",
+      "deviations": [
+        "docs/decisions.md",
+        "docs/state.json",
+        "scripts/gate",
+        "tests/phase14/test_context.py",
+        "vibe/cache.py",
+        "vibe/cli.py",
+        "vibe/context.py",
+        "vibe/gitutil.py"
+      ],
+      "commit": "c00049f",
+      "evidence": "docs/evidence/phase-15.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T05:09:59Z",
+      "signature": null
+    },
+    {
+      "phase": "16",
+      "gate": "PASS phase-16 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/evidence.py",
+        "vibe/governance.py",
+        "vibe/policy.py"
+      ],
+      "commit": "1d53b47",
+      "evidence": "docs/evidence/phase-16.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T06:05:14Z",
+      "signature": null
+    },
+    {
+      "phase": "16",
+      "gate": "PASS phase-16 1/1",
+      "deviations": [
+        "docs/decisions.md",
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/evidence.py",
+        "vibe/governance.py",
+        "vibe/policy.py"
+      ],
+      "commit": "1d53b47",
+      "evidence": "docs/evidence/phase-16.json",
+      "approved_by": null,
+      "approved_at": null,
+      "signature": null
+    },
+    {
+      "phase": "17",
+      "gate": "PASS phase-17 2/2",
+      "deviations": [
+        "docs/state.json",
+        "plugins/vibe-kit/skills/next/SKILL.md",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/report.py"
+      ],
+      "commit": "880f001",
+      "evidence": "docs/evidence/phase-17.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T06:37:07Z",
+      "signature": null
+    },
+    {
+      "phase": "17",
+      "gate": "PASS phase-17 2/2",
+      "deviations": [
+        "docs/decisions.md",
+        "docs/state.json",
+        "plugins/vibe-kit/skills/next/SKILL.md",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/report.py"
+      ],
+      "commit": "880f001",
+      "evidence": "docs/evidence/phase-17.json",
+      "approved_by": null,
+      "approved_at": null,
+      "signature": null
+    },
+    {
+      "phase": "18",
+      "gate": "PASS phase-18 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/context.py"
+      ],
+      "commit": "a317d2b",
+      "evidence": "docs/evidence/phase-18.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T10:14:26Z",
+      "signature": null
+    },
+    {
+      "phase": "18",
+      "gate": "PASS phase-18 1/1",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/context.py"
+      ],
+      "commit": "a317d2b",
+      "evidence": "docs/evidence/phase-18.json",
+      "approved_by": null,
+      "approved_at": null,
+      "signature": null
+    },
+    {
+      "phase": "19",
+      "gate": "G-PASS phase-19",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/errors.py"
+      ],
+      "commit": "cde836d",
+      "evidence": "docs/evidence/phase-19.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T10:34:37Z",
+      "signature": null
+    },
+    {
+      "phase": "20",
+      "gate": "G-PASS phase-20",
+      "deviations": [
+        "docs/decisions.md",
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/context.py",
+        "vibe/report.py"
+      ],
+      "commit": "beaed59",
+      "evidence": "docs/evidence/phase-20.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T10:52:35Z",
+      "signature": null
+    },
+    {
+      "phase": "21",
+      "gate": "G-PASS phase-21",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/gitutil.py"
+      ],
+      "commit": "dde7ea9",
+      "evidence": "docs/evidence/phase-21.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T10:59:15Z",
+      "signature": null
+    },
+    {
+      "phase": "22",
+      "gate": "G-PASS phase-22",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/context.py",
+        "vibe/policy.py",
+        "vibe/slice.py"
+      ],
+      "commit": "165a3af",
+      "evidence": "docs/evidence/phase-22.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T11:42:47Z",
+      "signature": null
+    },
+    {
+      "phase": "23",
+      "gate": "G-PASS phase-23",
+      "deviations": [
+        "docs/state.json",
+        "plugins/vibe-kit/agents/explorer.md",
+        "scripts/gate",
+        "vibe/cache.py",
+        "vibe/cli.py"
+      ],
+      "commit": "0ac55a1",
+      "evidence": "docs/evidence/phase-23.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T12:11:14Z",
+      "signature": null
+    },
+    {
+      "phase": "24",
+      "gate": "G-PASS phase-24",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/gitutil.py",
+        "vibe/state.py"
+      ],
+      "commit": "92c0b47",
+      "evidence": "docs/evidence/phase-24.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T15:57:45Z",
+      "signature": null
+    },
+    {
+      "phase": "25",
+      "gate": "G-PASS phase-25",
+      "deviations": [
+        "docs/decisions.md",
+        "docs/phases/phase-25.md",
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py",
+        "vibe/context.py",
+        "vibe/slice.py"
+      ],
+      "commit": "1597491",
+      "evidence": "docs/evidence/phase-25.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T16:21:17Z",
+      "signature": null
+    },
+    {
+      "phase": "26",
+      "gate": "G-PASS phase-26",
+      "deviations": [
+        "docs/state.json",
+        "scripts/gate",
+        "vibe/cli.py"
+      ],
+      "commit": "99f1c5b",
+      "evidence": "docs/evidence/phase-26.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-28T16:36:06Z",
+      "signature": null
+    },
+    {
+      "phase": "27",
+      "gate": "G-PASS phase-27",
+      "deviations": [
+        "docs/decisions.md",
+        "docs/state.json",
+        "scripts/gate",
+        "tests/phase08/test_install_uninstall.py",
+        "vibe/budget.py",
+        "vibe/cli.py",
+        "vibe/githooks.py",
+        "vibe/policy.py"
+      ],
+      "commit": "5bef9cd",
+      "evidence": "docs/evidence/phase-27.json",
+      "approved_by": "(gate:off)",
+      "approved_at": "2026-07-29T01:11:59Z",
+      "signature": null
+    }
+  ],
+  "active_deviations": [
+    "docs/decisions.md",
+    "docs/state.json",
+    "scripts/gate",
+    "tests/phase08/test_install_uninstall.py",
+    "vibe/budget.py",
+    "vibe/cli.py",
+    "vibe/githooks.py",
+    "vibe/policy.py"
+  ],
+  "resolved_deviations": [],
+  "next": "",
+  "schema": 2
+}

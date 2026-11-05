@@ -29,7 +29,7 @@ classifiers = [
 test = ["pytest>=8,<9"]
 
 [project.scripts]
-vibe = "vibe.cli:main"
+vibe = "vibe.__main__:main"
 
 [tool.setuptools]
 packages = ["vibe"]
