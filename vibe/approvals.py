@@ -129,17 +129,6 @@ def staged_bytes(root: str | Path, relative_path: str) -> bytes:
     return _git(root, "show", ":" + relative_path)
 
 
-def committed_bytes(root: str | Path, relative_path: str) -> bytes:
-    """Read the committed Git blob, independent of working-tree line endings.
-
-    Approval records are created from staged blob bytes. Verifying a committed
-    phase contract must therefore hash HEAD's blob rather than Path.read_bytes(),
-    which may contain CRLF on Windows when Git stores LF.
-    """
-    root = Path(root).resolve()
-    return _git(root, "show", "HEAD:" + relative_path)
-
-
 def _write_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
