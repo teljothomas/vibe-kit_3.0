@@ -38,7 +38,7 @@ On success it runs `gh pr merge --squash --match-head-commit <sha>`, confirms `M
 ## Why Invariant #2 holds
 
 - The implementer cannot approve: only a separate session can post a verdict that the controller accepts, and the verdict binds one SHA, so any later edit invalidates it.
-- The mechanism that rejects work cannot be disabled by the agent it governs: the controller, its tests, this procedure, `AGENTS.md` and `CLAUDE.md` are protected paths, changeable only by owner-signed approval. A PR touching them is refused by the controller and merged by the owner.
+- The mechanism that rejects work cannot be disabled by the agent it governs: the controller, its tests, this procedure, `AGENTS.md` and `CLAUDE.md` are protected paths, changeable only with owner-signed approval after the amendment merges. A PR touching them is refused by the controller and merged by the owner.
 - Phase scope, signed activation, protected-path approvals, the no-force-push rule and the release prohibition are unchanged.
 
 ## What the owner still does
