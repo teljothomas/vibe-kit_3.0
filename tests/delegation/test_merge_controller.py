@@ -1,6 +1,7 @@
 """Merge-controller decision tests; evaluate() is pure, so no network or gh is used."""
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -152,3 +153,8 @@ def test_required_checks_cover_the_ci_matrix():
     for name in sorted(mc.REQUIRED_CHECKS - {"gate"}):
         os_name, py = name.split(" / py")
         assert os_name in text and '"' + py + '"' in text
+
+
+def test_subprocess_output_is_decoded_as_utf8_on_every_platform():
+    code = "import sys; sys.stdout.buffer.write('\u2705 ok \u201d'.encode('utf-8'))"
+    assert "ok" in mc._run([sys.executable, "-c", code])

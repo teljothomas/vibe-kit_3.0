@@ -132,7 +132,8 @@ def evaluate(pr, comments, threads, head_committed_at, is_protected, expected_ph
 
 
 def _run(command, cwd=None):
-    proc = subprocess.run(command, cwd=str(cwd or ROOT), capture_output=True, text=True)
+    proc = subprocess.run(command, cwd=str(cwd or ROOT), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     if proc.returncode:
         raise ControllerError(" ".join(command[:3]) + " failed: " + (proc.stderr.strip() or proc.stdout.strip())[:240])
     return proc.stdout
