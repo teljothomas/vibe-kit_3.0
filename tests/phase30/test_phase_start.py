@@ -41,10 +41,14 @@ def test_phase_start_imports_history_and_signs_all_protected_outputs(tmp_path, m
     (root / "tests/phase30/fixtures").mkdir(parents=True)
     shutil.copyfile(FIXTURE, root / "tests/phase30/fixtures/v2-state.schema2.json")
 
-    prior_content = (root / "docs/phases/phase-29.md").read_bytes()
+    prior_target = "docs/phases/phase-29.md"
+    prior_path = root / prior_target
+    prior_content = approvals.committed_bytes(root, prior_target)
     prior_digest = hashlib.sha256(prior_content).hexdigest()
-    prior_record = approvals.make_record("29", "docs/phases/phase-29.md", prior_digest,
+    prior_record = approvals.make_record("29", prior_target, prior_digest,
                                          "phase_amendment", "Teljo Test", KEY.encode())
+    # Simulate a Windows checkout with CRLF while the approved Git blob remains LF.
+    prior_path.write_bytes(prior_content.replace(bytes([10]), bytes([13, 10])))
     (root / "docs/approvals").mkdir()
     (root / "docs/approvals/phase-29.json").write_text(
         json.dumps(prior_record, indent=2) + "\n", encoding="utf-8"
@@ -61,6 +65,8 @@ def test_phase_start_imports_history_and_signs_all_protected_outputs(tmp_path, m
     assert new_state["legacy_history"]["imported_entries"] == 22
     assert events.verify_project(root)["events"] == 25
     assert execution_mode(root) == "supervised"
+    # Restore the fixture contract after the CRLF simulation.
+    prior_path.write_bytes(prior_content)
     ok, message = githooks.pre_commit_check(root)
     assert ok, message
 
