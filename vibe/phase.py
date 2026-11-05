@@ -31,6 +31,17 @@ def _approval_for(root: Path, phase: str, target: str, mode: str,
     return approvals.make_record(phase, target, digest, mode, reviewer, key, **extra)
 
 
+def _committed_bytes(root: Path, relative_path: str) -> bytes:
+    """Read a committed Git blob without applying working-tree line-ending rules."""
+    result = subprocess.run(
+        ["git", "show", "HEAD:" + relative_path],
+        cwd=str(root), capture_output=True,
+    )
+    if result.returncode:
+        raise PhaseStartError("previous phase contract is not available from HEAD")
+    return result.stdout
+
+
 def start_phase(root: str | Path, phase: str, *, environ=None, stdin=None, confirm=input) -> Dict[str, Any]:
     """Activate the proposed next phase after exact-content owner approval.
 
@@ -86,7 +97,7 @@ def start_phase(root: str | Path, phase: str, *, environ=None, stdin=None, confi
     prior_path = root / "docs/approvals" / ("phase-" + previous + ".json")
     try:
         prior_record = json.loads(prior_path.read_text(encoding="utf-8"))
-        prior_digest = hashlib.sha256((root / prior_target).read_bytes()).hexdigest()
+        prior_digest = hashlib.sha256(_committed_bytes(root, prior_target)).hexdigest()
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise PhaseStartError("previous phase approval record or contract is missing") from exc
     valid, reason = approvals.verify_record(prior_record, key, prior_target, prior_digest, previous)
