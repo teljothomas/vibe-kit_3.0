@@ -1,6 +1,7 @@
 import hashlib
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 from vibe import approvals, events, githooks, phase, state
@@ -43,7 +44,9 @@ def test_phase_start_imports_history_and_signs_all_protected_outputs(tmp_path, m
 
     prior_target = "docs/phases/phase-29.md"
     prior_path = root / prior_target
-    prior_content = approvals.committed_bytes(root, prior_target)
+    prior_content = subprocess.run(
+        ["git", "show", "HEAD:" + prior_target], cwd=root, check=True, capture_output=True
+    ).stdout
     prior_digest = hashlib.sha256(prior_content).hexdigest()
     prior_record = approvals.make_record("29", prior_target, prior_digest,
                                          "phase_amendment", "Teljo Test", KEY.encode())
