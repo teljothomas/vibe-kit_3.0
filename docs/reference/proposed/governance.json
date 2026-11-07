@@ -1,0 +1,9 @@
+{
+  "protected_paths": [
+    "CLAUDE.md",
+    "docs/reference/delegated-delivery.md",
+    "scripts/merge_controller.py",
+    "tests/delegation/**"
+  ],
+  "schema": 1
+}
